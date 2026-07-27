@@ -11,3 +11,6 @@ server/private_uploads/
 .pnpm-store/
 .tmp-prod-test/
 .git-orienta/
+.github-upload/
+.github-upload-*/
+.github-upload-clean/
