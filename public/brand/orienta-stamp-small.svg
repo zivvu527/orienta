@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title desc">
+  <title id="title">Orienta small corner stamp</title>
+  <desc id="desc">A light decorative stamp with a simplified route and sun.</desc>
+  <g fill="none" stroke="#5E6A50" stroke-linecap="round" stroke-linejoin="round" opacity=".9">
+    <path d="M81 18c36 0 61 25 61 61 0 37-25 62-61 62-37 0-63-25-63-62 0-36 26-61 63-61Z" stroke-width="4"/>
+    <path d="M44 90c17 0 26-8 35-18 9-9 18-18 35-18" stroke-width="5"/>
+    <circle cx="44" cy="90" r="4.5" fill="#5E6A50" stroke="none"/>
+    <circle cx="116" cy="53" r="12" fill="#F6DF8A" stroke-width="4"/>
+    <path d="M116 34v7M116 65v7M97 53h7M128 53h7" stroke-width="3"/>
+    <path d="M31 42c9-9 22-15 36-17" stroke-width="2" opacity=".35"/>
+    <path d="M113 133c12-7 20-16 25-29" stroke-width="2" opacity=".35"/>
+  </g>
+</svg>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Orienta app icon</title>
+  <desc id="desc">A warm app icon with an optically centered route moving toward an eastern sun.</desc>
+  <rect width="512" height="512" rx="112" fill="#F6DF8A"/>
+  <path d="M256 86c96 0 170 72 170 171 0 100-74 171-170 171-97 0-171-71-171-171 0-99 74-171 171-171Z" fill="#FFF8E8" stroke="#1F201C" stroke-width="18" stroke-linejoin="round"/>
+  <path d="M154 292c46 0 70-20 94-47 24-26 48-51 95-51" fill="none" stroke="#1F201C" stroke-width="23" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="154" cy="292" r="15" fill="#1F201C"/>
+  <circle cx="348" cy="192" r="38" fill="#C9DFA7" stroke="#1F201C" stroke-width="16"/>
+  <path d="M348 137v20M348 227v20M293 192h20M383 192h20" stroke="#1F201C" stroke-width="12" stroke-linecap="round"/>
+  <path d="M142 145c33-27 73-41 119-41" fill="none" stroke="#1F201C" stroke-width="7" stroke-linecap="round" opacity=".16"/>
+</svg>

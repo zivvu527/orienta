@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Orienta logo symbol monochrome</title>
+  <desc id="desc">A single-color Orienta route mark for small and restrained uses.</desc>
+  <rect width="256" height="256" rx="54" fill="#FFF8E8"/>
+  <path d="M128 38c49 0 87 38 87 90 0 53-38 90-87 90-50 0-87-37-87-90 0-52 37-90 87-90Z" fill="none" stroke="#1F201C" stroke-width="9" stroke-linejoin="round"/>
+  <path d="M75 149c23 0 35-10 47-24 12-13 24-26 48-26" fill="none" stroke="#1F201C" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="75" cy="149" r="7" fill="#1F201C"/>
+  <circle cx="172" cy="98" r="19" fill="none" stroke="#1F201C" stroke-width="8"/>
+  <path d="M172 71v9M172 116v9M145 98h9M190 98h9" stroke="#1F201C" stroke-width="5.5" stroke-linecap="round"/>
+</svg>

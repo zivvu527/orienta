@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Orienta maskable app icon</title>
+  <desc id="desc">A maskable Orienta app icon with extra safe area around the route-and-sun mark.</desc>
+  <rect width="512" height="512" fill="#F6DF8A"/>
+  <path d="M256 112c82 0 146 62 146 145 0 84-64 145-146 145-83 0-146-61-146-145 0-83 63-145 146-145Z" fill="#FFF8E8" stroke="#1F201C" stroke-width="17" stroke-linejoin="round"/>
+  <path d="M172 281c38 0 58-16 78-38 20-21 39-41 77-41" fill="none" stroke="#1F201C" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="172" cy="281" r="13" fill="#1F201C"/>
+  <circle cx="331" cy="200" r="31" fill="#C9DFA7" stroke="#1F201C" stroke-width="14"/>
+  <path d="M331 153v17M331 230v17M284 200h17M361 200h17" stroke="#1F201C" stroke-width="10" stroke-linecap="round"/>
+</svg>

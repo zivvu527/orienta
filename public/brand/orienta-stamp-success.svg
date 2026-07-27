@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 180" role="img" aria-labelledby="title desc">
+  <title id="title">Orienta completed-step stamp</title>
+  <desc id="desc">A restrained completed-step stamp for success moments.</desc>
+  <g transform="translate(24 16) rotate(2 126 74)">
+    <path d="M126 1c72 0 124 38 126 80 2 46-51 81-126 81C53 162 1 127 1 82 1 39 53 1 126 1Z" fill="#F7E9B7" stroke="#5E6A50" stroke-width="5.5" stroke-linecap="round"/>
+    <path d="M69 82c27 0 40-12 53-26 13-14 27-27 53-27" fill="none" stroke="#1F201C" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="69" cy="82" r="5" fill="#1F201C"/>
+    <circle cx="179" cy="29" r="14" fill="#F6DF8A" stroke="#1F201C" stroke-width="5"/>
+    <text x="126" y="111" text-anchor="middle" fill="#1F201C" font-family="Inter, Avenir, 'Segoe UI', Arial, sans-serif" font-size="21" font-weight="900">Orienta helped here</text>
+    <text x="126" y="135" text-anchor="middle" fill="#5E6A50" font-family="Inter, Avenir, 'Segoe UI', Arial, sans-serif" font-size="13" font-weight="800" letter-spacing=".8">COMPLETED STEP</text>
+  </g>
+</svg>

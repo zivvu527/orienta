@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Orienta logo symbol</title>
+  <desc id="desc">A calm route mark moving from a starting point toward an eastern sun inside a soft O shape.</desc>
+  <rect width="256" height="256" rx="54" fill="#F6DF8A"/>
+  <path d="M128 38c49 0 87 38 87 90 0 53-38 90-87 90-50 0-87-37-87-90 0-52 37-90 87-90Z" fill="#FFF8E8" stroke="#1F201C" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M75 149c23 0 35-10 47-24 12-13 24-26 48-26" fill="none" stroke="#1F201C" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="75" cy="149" r="7" fill="#1F201C"/>
+  <circle cx="172" cy="98" r="18" fill="#C9DFA7" stroke="#1F201C" stroke-width="7"/>
+  <path d="M172 72v9M172 115v9M146 98h9M189 98h9" stroke="#1F201C" stroke-width="5" stroke-linecap="round"/>
+  <path d="M70 70c17-14 38-21 62-21" fill="none" stroke="#1F201C" stroke-width="3.5" stroke-linecap="round" opacity=".16"/>
+</svg>

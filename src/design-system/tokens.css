@@ -1,0 +1,61 @@
+:root {
+  --bic-color-canvas: #f8f1df;
+  --bic-color-surface: #fffdf7;
+  --bic-color-surface-soft: #f7eed4;
+  --bic-color-surface-muted: #f1e7ca;
+  --bic-color-paper-deep: #e7d7aa;
+  --bic-color-ink: #33342f;
+  --bic-color-ink-muted: #747267;
+  --bic-color-ink-subtle: #9c9789;
+  --bic-color-line: rgba(51, 52, 47, 0.09);
+  --bic-color-line-strong: rgba(51, 52, 47, 0.15);
+  --bic-color-cream-yellow: #efdfaa;
+  --bic-color-cream-yellow-muted: #f8efcf;
+  --bic-color-primary: #84917f;
+  --bic-color-primary-deep: #596757;
+  --bic-color-primary-soft: #edf1e8;
+  --bic-color-clay: #ad7f65;
+  --bic-color-clay-soft: #f1dfd0;
+  --bic-color-emergency: #b84a3f;
+  --bic-color-emergency-soft: #f7dfd8;
+  --bic-color-success: #657b5d;
+  --bic-color-success-soft: #e9f0df;
+  --bic-color-warning: #98774a;
+  --bic-color-warning-soft: #f4e7c4;
+
+  --bic-space-1: 4px;
+  --bic-space-2: 8px;
+  --bic-space-3: 12px;
+  --bic-space-4: 16px;
+  --bic-space-5: 24px;
+  --bic-space-6: 32px;
+  --bic-space-7: 40px;
+  --bic-space-8: 56px;
+
+  --bic-radius-xs: 4px;
+  --bic-radius-sm: 8px;
+  --bic-radius-md: 11px;
+  --bic-radius-lg: 16px;
+  --bic-radius-xl: 24px;
+
+  --bic-shadow-paper: 0 1px 0 rgba(52, 53, 47, 0.04);
+  --bic-shadow-soft: 0 14px 34px rgba(82, 72, 48, 0.07);
+
+  --bic-font-ui: Inter, "SF Pro Text", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --bic-font-editorial: "New York", "Iowan Old Style", Georgia, ui-serif, serif;
+  --bic-font-cn: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", "Segoe UI", sans-serif;
+
+  --bic-text-caption: 11px;
+  --bic-text-small: 13px;
+  --bic-text-body: 15px;
+  --bic-text-lead: 18px;
+  --bic-text-section: 22px;
+  --bic-text-display: 42px;
+
+  --bic-leading-tight: 1.07;
+  --bic-leading-title: 1.2;
+  --bic-leading-body: 1.58;
+
+  --bic-transition-fast: 140ms ease;
+  --bic-transition-calm: 220ms ease;
+}

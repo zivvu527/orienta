@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 214" role="img" aria-labelledby="title desc">
+  <title id="title">Orienta logo lockup</title>
+  <desc id="desc">The Orienta symbol with serif wordmark and the tagline Travel in China with confidence.</desc>
+  <rect width="640" height="214" rx="40" fill="#FFF8E8"/>
+  <g transform="translate(44 39)">
+    <rect width="136" height="136" rx="32" fill="#F6DF8A"/>
+    <path d="M68 20c29 0 51 22 51 48 0 30-22 51-51 51-30 0-51-21-51-51 0-26 21-48 51-48Z" fill="#FFF8E8" stroke="#1F201C" stroke-width="6"/>
+    <path d="M39 81c14 0 22-6 30-15 8-8 15-16 31-16" fill="none" stroke="#1F201C" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="39" cy="81" r="5" fill="#1F201C"/>
+    <circle cx="102" cy="49" r="11" fill="#C9DFA7" stroke="#1F201C" stroke-width="5"/>
+    <path d="M102 32v6M102 60v6M85 49h6M113 49h6" stroke="#1F201C" stroke-width="3.5" stroke-linecap="round"/>
+  </g>
+  <text x="212" y="101" fill="#1F201C" font-family="Georgia, 'Times New Roman', serif" font-size="57" font-weight="700" letter-spacing="-.7">Orienta</text>
+  <text x="216" y="137" fill="#606257" font-family="Inter, Avenir, 'Segoe UI', Arial, sans-serif" font-size="20" font-weight="720">Travel in China with confidence</text>
+</svg>
