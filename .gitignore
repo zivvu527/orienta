@@ -14,3 +14,5 @@ server/private_uploads/
 .github-upload/
 .github-upload-*/
 .github-upload-clean/
+.ssh-orienta-github
+.ssh-orienta-github.pub
