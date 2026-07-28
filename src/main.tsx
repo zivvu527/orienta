@@ -8,6 +8,7 @@ import {
   ChefHat,
   Copy,
   CreditCard,
+  Info,
   Landmark,
   MapPin,
   MessageCircle,
@@ -4594,6 +4595,14 @@ function SubmittedPage({
         <p>A real person will review it and send the answer to {email || 'your email'}.</p>
         <small>This is not an instant chat. You can safely leave this page.</small>
       </div>
+      <section className="ask-local-email-note" aria-label="Email delivery note">
+        <span aria-hidden="true"><Info size={18} /></span>
+        <div>
+          <strong>Didn’t receive our email?</strong>
+          <p>Occasionally, email providers may place our reply in your Spam or Junk folder. If you find it there, mark it as Not Spam to ensure future replies arrive in your inbox.</p>
+          <small>We’ll usually reply within 24 hours.</small>
+        </div>
+      </section>
       <section className="ask-local-backup-link">
         <strong>Private backup link</strong>
         <p>Keep this private link if you want to check the answer later.</p>
