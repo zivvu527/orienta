@@ -43,6 +43,16 @@ const maxMenuImageMb = Number(process.env.MAX_MENU_IMAGE_MB ?? 8);
 const maxMenuImageBytes = maxMenuImageMb * 1024 * 1024;
 const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const replyEmailSendLocks = new Set<number>();
+const corsAllowedOrigins = new Set([
+  'capacitor://localhost',
+  'ionic://localhost',
+  'http://localhost',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  process.env.PUBLIC_SITE_URL,
+  process.env.PUBLIC_APP_URL,
+  ...(process.env.CORS_ALLOWED_ORIGINS ?? '').split(','),
+].filter((origin): origin is string => Boolean(origin?.trim())).map((origin) => origin.trim().replace(/\/$/, '')));
 
 process.on('unhandledRejection', (error) => {
   console.error('[process:unhandled-rejection]', error);
@@ -50,6 +60,26 @@ process.on('unhandledRejection', (error) => {
 
 process.on('uncaughtException', (error) => {
   console.error('[process:uncaught-exception]', error);
+});
+
+app.use((request, response, next) => {
+  const origin = request.headers.origin?.replace(/\/$/, '');
+
+  if (origin && corsAllowedOrigins.has(origin)) {
+    response.setHeader('Access-Control-Allow-Origin', origin);
+    response.setHeader('Access-Control-Allow-Credentials', 'true');
+    response.setHeader('Vary', 'Origin');
+  }
+
+  response.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,OPTIONS');
+  response.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+
+  if (request.method === 'OPTIONS') {
+    response.status(204).end();
+    return;
+  }
+
+  next();
 });
 
 app.use(express.json({ limit: '32kb' }));

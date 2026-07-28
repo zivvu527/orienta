@@ -7,9 +7,13 @@
     "typecheck": "tsc && tsc -p tsconfig.server.json",
     "build": "pnpm typecheck && vite build",
     "start": "tsx server/index.ts",
+    "cap:sync": "pnpm build && cap sync",
+    "cap:ios": "cap open ios",
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
+    "@capacitor/core": "^8.4.2",
+    "@capacitor/ios": "^8.4.2",
     "@vitejs/plugin-react": "latest",
     "concurrently": "^10.0.3",
     "dotenv": "^17.4.2",
@@ -26,6 +30,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.4.2",
     "@types/express": "^5.0.6",
     "@types/multer": "^2.2.0",
     "@types/node": "^26.1.1",

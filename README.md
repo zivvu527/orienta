@@ -467,6 +467,78 @@ The persistent disk is the source of truth for Ask a Local. Back up both:
 
 Before major deploys or schema changes, create a backup. If the persistent disk is deleted, Ask a Local questions and uploaded photos are lost.
 
+## iOS Capacitor Shell
+
+The iOS app uses the same React/Vite frontend as the Web Beta. The app shell is generated with Capacitor and calls the deployed Express API over HTTPS.
+
+### What stays shared
+
+- Product screens, UI, and interaction logic stay in `src/`.
+- OpenAI, Resend, SQLite, and private uploads stay on the Render server.
+- The iOS app does not include server secrets.
+
+### Local Web Development
+
+Leave `VITE_API_BASE_URL` empty for normal web development:
+
+```text
+VITE_API_BASE_URL=
+```
+
+The Vite dev server will continue proxying `/api` to the local Express server.
+
+### iOS Build API URL
+
+Before syncing the iOS shell, build with the public HTTPS API:
+
+```text
+VITE_API_BASE_URL=https://orienta.cn pnpm build
+pnpm cap:sync
+```
+
+On Windows PowerShell:
+
+```powershell
+$env:VITE_API_BASE_URL="https://orienta.cn"
+pnpm build
+pnpm cap:sync
+```
+
+### iOS Project
+
+The iOS project lives in:
+
+```text
+ios/
+```
+
+To run it on a simulator or real iPhone, open the project on a Mac with Xcode:
+
+```text
+pnpm cap:ios
+```
+
+If running from Windows, copy or pull the repository on a Mac first, then run the Xcode steps there.
+
+### CORS
+
+The Express API allows Capacitor origins by default:
+
+```text
+capacitor://localhost
+ionic://localhost
+```
+
+If more origins are needed later, add them with:
+
+```text
+CORS_ALLOWED_ORIGINS=capacitor://localhost,ionic://localhost
+```
+
+### Current iOS Phase
+
+Phase 2 only adds the iOS shell, API base URL support, and CORS. Camera plugin integration and HEIC-specific image handling are intentionally deferred until Home and basic navigation are verified on iPhone.
+
 ## Legacy
 
 Archived prototypes and removed directions live under `src/legacy/`.

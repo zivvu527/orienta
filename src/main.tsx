@@ -28,6 +28,7 @@ import { railCategoryLabels, railPhraseGroups, railPhrases } from './data/railPh
 import { shoppingPhraseGroups } from './data/shoppingPhrases';
 import type { CategoryLabel, Phrase } from './data/types';
 import { DesignSystemPreview } from './design-system/DesignSystemPreview';
+import { apiUrl } from './api';
 import './styles.css';
 
 const savedAddressesStorageKey = 'backpack.savedAddresses';
@@ -1500,7 +1501,7 @@ function TranslateMenuPage({
       const formData = new FormData();
       formData.append('menu_image', selectedFile);
 
-      const response = await fetch('/api/translate-menu', {
+      const response = await fetch(apiUrl('/api/translate-menu'), {
         method: 'POST',
         body: formData,
         signal: controller.signal,
@@ -2034,7 +2035,7 @@ function ExploreDishAiPage({
     const timeout = window.setTimeout(() => controller.abort(), 45_000);
 
     try {
-      const response = await fetch('/api/explore-dish', {
+      const response = await fetch(apiUrl('/api/explore-dish'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dishName: value }),
@@ -2272,7 +2273,7 @@ function TaxiDestinationPage({
     const timeout = window.setTimeout(() => controller.abort(), 45_000);
 
     try {
-      const response = await fetch('/api/format-destination', {
+      const response = await fetch(apiUrl('/api/format-destination'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ destination }),
@@ -2892,7 +2893,7 @@ function RailTicketAiPage({
       const formData = new FormData();
       formData.append('ticket_image', session.selectedFile);
 
-      const response = await fetch('/api/parse-rail-ticket', {
+      const response = await fetch(apiUrl('/api/parse-rail-ticket'), {
         method: 'POST',
         body: formData,
         signal: controller.signal,
@@ -3542,7 +3543,7 @@ function UnderstandProductPage({ onBack }: { onBack: () => void }) {
       const formData = new FormData();
       formData.append('product_image', selectedFile);
 
-      const response = await fetch('/api/understand-product', {
+      const response = await fetch(apiUrl('/api/understand-product'), {
         method: 'POST',
         body: formData,
         signal: controller.signal,
@@ -3850,7 +3851,7 @@ function LiveCurrencyConverterPage({
       setIsLoading(true);
       setError('');
       try {
-        const response = await fetch(`/api/exchange-rates?base=${encodeURIComponent(fromCurrency)}`, {
+        const response = await fetch(apiUrl(`/api/exchange-rates?base=${encodeURIComponent(fromCurrency)}`), {
           signal: controller.signal,
         });
         const body = await response.json().catch(() => null);
@@ -4123,7 +4124,7 @@ function AskLocalPage({
       formData.append('email', email.trim());
       if (photo) formData.append('photo', photo);
 
-      const response = await fetch('/api/local-questions', {
+      const response = await fetch(apiUrl('/api/local-questions'), {
         method: 'POST',
         body: formData,
       });
@@ -4213,7 +4214,7 @@ function QuestionDetailPage({ token, onHome }: { token: string; onHome: () => vo
       setIsLoading(true);
       setError('');
       try {
-        const response = await fetch(`/api/questions/${encodeURIComponent(token)}`);
+        const response = await fetch(apiUrl(`/api/questions/${encodeURIComponent(token)}`));
         const body = await response.json().catch(() => null);
         if (!response.ok) throw new Error(body?.error || 'Question not found.');
         setQuestion(body as TravelerQuestion);
@@ -4271,7 +4272,7 @@ function QuestionDetailPage({ token, onHome }: { token: string; onHome: () => vo
         {question.context ? <Detail title="Context" body={question.context} /> : null}
         <Detail title="Submitted" body={formatDateTime(question.createdAt)} />
       </div>
-      {question.hasPhoto ? <img className="question-photo" src={`/api/questions/${encodeURIComponent(token)}/photo`} alt="Uploaded question context" /> : null}
+      {question.hasPhoto ? <img className="question-photo" src={apiUrl(`/api/questions/${encodeURIComponent(token)}/photo`)} alt="Uploaded question context" /> : null}
       {question.replyEnglish ? (
         <section className="answer-card">
           <span className="badge">Answered by a local</span>
@@ -4300,7 +4301,7 @@ function AdminLoginPage({ onLoggedIn, onHome }: { onLoggedIn: () => void; onHome
     setIsLoading(true);
     setError('');
     try {
-      const response = await fetch('/api/admin/login', {
+      const response = await fetch(apiUrl('/api/admin/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -4337,7 +4338,7 @@ function AdminQuestionsPage({ onHome, onOpen, onLogin }: { onHome: () => void; o
       setIsLoading(true);
       setError('');
       try {
-        const response = await fetch(`/api/admin/questions?status=${status}`);
+        const response = await fetch(apiUrl(`/api/admin/questions?status=${status}`));
         if (response.status === 401) {
           onLogin();
           return;
@@ -4392,7 +4393,7 @@ function AdminQuestionDetailPage({ id, onBack, onLogin }: { id: number; onBack: 
       setIsLoading(true);
       setError('');
       try {
-        const response = await fetch(`/api/admin/questions/${id}`);
+        const response = await fetch(apiUrl(`/api/admin/questions/${id}`));
         if (response.status === 401) {
           onLogin();
           return;
@@ -4417,7 +4418,7 @@ function AdminQuestionDetailPage({ id, onBack, onLogin }: { id: number; onBack: 
     setError('');
     if (action === 'publish') setIsPublishing(true);
     try {
-      const response = await fetch(`/api/admin/questions/${id}/${action}`, {
+      const response = await fetch(apiUrl(`/api/admin/questions/${id}/${action}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: action === 'close' ? '{}' : JSON.stringify({ replyEnglish, usefulChinese }),
@@ -4443,7 +4444,7 @@ function AdminQuestionDetailPage({ id, onBack, onLogin }: { id: number; onBack: 
     setError('');
     setIsSendingEmail(true);
     try {
-      const response = await fetch(`/api/admin/questions/${id}/email`, {
+      const response = await fetch(apiUrl(`/api/admin/questions/${id}/email`), {
         method: 'POST',
       });
       if (response.status === 401) {
@@ -4486,7 +4487,7 @@ function AdminQuestionDetailPage({ id, onBack, onLogin }: { id: number; onBack: 
         <Detail title="Admin notification message ID" body={question.adminNotificationProviderMessageId || 'None'} />
         <Detail title="Submitted" body={formatDateTime(question.createdAt)} />
       </div>
-      {question.hasPhoto ? <img className="question-photo" src={`/api/admin/questions/${question.id}/photo`} alt="Uploaded question context" /> : null}
+      {question.hasPhoto ? <img className="question-photo" src={apiUrl(`/api/admin/questions/${question.id}/photo`)} alt="Uploaded question context" /> : null}
       <label className="text-field compact-field"><span>Reply in English</span><textarea value={replyEnglish} onChange={(event) => setReplyEnglish(event.target.value)} /></label>
       <label className="text-field compact-field"><span>Useful Chinese phrase</span><textarea value={usefulChinese} onChange={(event) => setUsefulChinese(event.target.value)} /></label>
       {error ? <div className="error-panel"><strong>Update failed</strong><p>{error}</p></div> : null}
