@@ -450,11 +450,60 @@ Then put the generated value in `ADMIN_PASSWORD_HASH`. Do not use `ADMIN_PASSWOR
 
 ### Domain Setup
 
-Custom domain setup will be done later in Render:
+Production uses the canonical domain:
 
-- `orienta.cn` should point to the Render Web Service.
-- `www.orienta.cn` can redirect to `orienta.cn`.
-- Do not change the existing Resend DNS records for `mail.orienta.cn`.
+- `https://orienta.cn`
+
+In Render, add both custom domains to the same Web Service:
+
+- `orienta.cn`
+- `www.orienta.cn`
+
+Then add the DNS records Render shows for those domains at your DNS provider.
+The Express server redirects `www.orienta.cn` to `https://orienta.cn` with a 301 redirect in production.
+
+Do not change the existing Resend DNS records for:
+
+- `mail.orienta.cn`
+
+Render's default domain, such as `https://orienta-xxxx.onrender.com`, can remain available as an emergency backup, but do not use it in user-facing links.
+
+Use these production environment variables:
+
+```text
+PUBLIC_SITE_URL=https://orienta.cn
+PUBLIC_APP_URL=https://orienta.cn
+CORS_ALLOWED_ORIGINS=capacitor://localhost,ionic://localhost
+```
+
+For the Web Beta, leave `VITE_API_BASE_URL` empty so browser requests use the same origin:
+
+```text
+VITE_API_BASE_URL=
+```
+
+For future iOS builds, set:
+
+```text
+VITE_API_BASE_URL=https://orienta.cn
+```
+
+### Robots and Sitemap
+
+The public build includes:
+
+```text
+/robots.txt
+/sitemap.xml
+```
+
+The sitemap only lists routes that can be refreshed directly as public pages:
+
+```text
+https://orienta.cn/
+https://orienta.cn/ask-local
+https://orienta.cn/emergency
+```
 
 ### Backup Warning
 
@@ -537,7 +586,15 @@ CORS_ALLOWED_ORIGINS=capacitor://localhost,ionic://localhost
 
 ### Current iOS Phase
 
-Phase 2 only adds the iOS shell, API base URL support, and CORS. Camera plugin integration and HEIC-specific image handling are intentionally deferred until Home and basic navigation are verified on iPhone.
+The iOS shell, API base URL support, CORS, and Capacitor Camera integration are in place. Camera/photo output is normalized to JPEG before upload where supported.
+
+Still pending macOS/Xcode verification:
+
+- iPhone camera permission flow
+- iPhone photo library permission flow
+- HEIC photo handling on real devices
+- large-photo compression on real devices
+- TestFlight build and signing
 
 ## Legacy
 

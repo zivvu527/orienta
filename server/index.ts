@@ -39,6 +39,7 @@ const port = Number(process.env.PORT ?? process.env.API_PORT ?? 8787);
 const host = isProduction ? '0.0.0.0' : '127.0.0.1';
 const distDir = path.resolve(process.cwd(), 'dist');
 const indexHtmlPath = path.join(distDir, 'index.html');
+const productionSiteUrl = 'https://orienta.cn';
 const maxMenuImageMb = Number(process.env.MAX_MENU_IMAGE_MB ?? 8);
 const maxMenuImageBytes = maxMenuImageMb * 1024 * 1024;
 const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -49,6 +50,8 @@ const corsAllowedOrigins = new Set([
   'http://localhost',
   'http://localhost:5173',
   'http://127.0.0.1:5173',
+  productionSiteUrl,
+  'https://www.orienta.cn',
   process.env.PUBLIC_SITE_URL,
   process.env.PUBLIC_APP_URL,
   ...(process.env.CORS_ALLOWED_ORIGINS ?? '').split(','),
@@ -63,6 +66,17 @@ process.on('uncaughtException', (error) => {
 });
 
 app.use((request, response, next) => {
+  if (isProduction) {
+    const forwardedHost = request.headers['x-forwarded-host'];
+    const rawHost = Array.isArray(forwardedHost) ? forwardedHost[0] : forwardedHost || request.headers.host || '';
+    const hostname = rawHost.split(':')[0].toLowerCase();
+
+    if (hostname === 'www.orienta.cn') {
+      response.redirect(301, `${productionSiteUrl}${request.originalUrl}`);
+      return;
+    }
+  }
+
   const origin = request.headers.origin?.replace(/\/$/, '');
 
   if (origin && corsAllowedOrigins.has(origin)) {
@@ -658,7 +672,8 @@ function safeRecordAdminNotification(privateToken: string, delivery: {
 }
 
 function getPublicSiteUrl() {
-  return (process.env.PUBLIC_SITE_URL || process.env.PUBLIC_APP_URL || 'http://127.0.0.1:5173').replace(/\/$/, '');
+  const fallbackUrl = isProduction ? productionSiteUrl : 'http://127.0.0.1:5173';
+  return (process.env.PUBLIC_SITE_URL || process.env.PUBLIC_APP_URL || fallbackUrl).replace(/\/$/, '');
 }
 
 export const server = app.listen(port, host, () => {
