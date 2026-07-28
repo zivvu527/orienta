@@ -44,9 +44,10 @@ export function getAiTimeoutMs(kind: AiTaskKind) {
 export async function withAiTimeout<T>(
   kind: AiTaskKind,
   task: (signal: AbortSignal) => Promise<T>,
+  timeoutMs = getAiTimeoutMs(kind),
 ) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), getAiTimeoutMs(kind));
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     return await task(controller.signal);

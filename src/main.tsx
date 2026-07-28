@@ -1493,7 +1493,7 @@ function TranslateMenuPage({
     setError('');
 
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 55_000);
+    const timeout = window.setTimeout(() => controller.abort(), 170_000);
 
     try {
       const formData = new FormData();
@@ -1524,7 +1524,7 @@ function TranslateMenuPage({
     } catch (requestError) {
       setError(
         requestError instanceof DOMException && requestError.name === 'AbortError'
-          ? 'Understanding this menu took too long. Please try again with a clearer photo.'
+          ? 'This menu has a lot of items and took too long. Try a closer photo of one section, or upload a smaller part of the menu.'
           : requestError instanceof Error
             ? requestError.message
             : 'We could not read this menu clearly. Try taking the photo closer and flatter.',
@@ -1628,7 +1628,7 @@ function MenuLoadingProgress({ label, message, progress }: { label: string; mess
       <div className="menu-progress-track" aria-hidden="true">
         <span style={{ width: `${progress}%` }} />
       </div>
-      <em>Detailed menus can take up to about a minute.</em>
+      <em>Large menus can take a little longer. Please keep this page open.</em>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { extractJsonText, getAiApiKey, getAiApiMode, getAiBaseUrl, getAiModel, withAiTimeout } from './aiConfig';
+import { extractJsonText, getAiApiKey, getAiApiMode, getAiBaseUrl, getAiModel, getAiTimeoutMs, withAiTimeout } from './aiConfig';
 import { TranslateMenuResultSchema, translateMenuJsonSchema } from './types';
 
 const menuInstructions = [
@@ -24,6 +24,13 @@ const relaxedMenuInstructions = [
   'Return recognized or uncertain if you can read at least one dish item.',
 ].join(' ');
 
+function getMenuTimeoutMs() {
+  const fallback = Math.max(getAiTimeoutMs('vision'), 150_000);
+  const value = Number(process.env.OPENAI_MENU_TIMEOUT_MS ?? fallback);
+
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
 export async function translateMenuImage(file: Express.Multer.File) {
   const apiKey = getAiApiKey();
   const model = getAiModel('vision');
@@ -36,11 +43,12 @@ export async function translateMenuImage(file: Express.Multer.File) {
   });
 
   const imageUrl = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+  const menuTimeoutMs = getMenuTimeoutMs();
   const rawText = await withAiTimeout('vision', (signal) => (
     apiMode === 'chat'
       ? translateWithChatCompletionsRaw(apiKey, baseURL, model, imageUrl, menuInstructions, signal)
       : translateWithResponses(client, model, imageUrl, menuInstructions, signal)
-  ));
+  ), menuTimeoutMs);
 
   const firstResult = parseMenuResult(rawText);
 
@@ -52,7 +60,7 @@ export async function translateMenuImage(file: Express.Multer.File) {
     apiMode === 'chat'
       ? translateWithChatCompletionsRaw(apiKey, baseURL, model, imageUrl, relaxedMenuInstructions, signal)
       : translateWithResponses(client, model, imageUrl, relaxedMenuInstructions, signal)
-  ));
+  ), menuTimeoutMs);
 
   return parseMenuResult(relaxedRawText);
 }
