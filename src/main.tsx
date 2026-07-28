@@ -29,11 +29,14 @@ import { shoppingPhraseGroups } from './data/shoppingPhrases';
 import type { CategoryLabel, Phrase } from './data/types';
 import { DesignSystemPreview } from './design-system/DesignSystemPreview';
 import { apiUrl } from './api';
+import { canUseNativeImagePicker, isNativeImagePickerCancel, pickNativeImage, type NativeImageSource } from './nativeImage';
 import './styles.css';
 
 const savedAddressesStorageKey = 'backpack.savedAddresses';
 const askLocalDraftStorageKey = 'orienta.askLocalDraft';
 const askLocalSubmittedStorageKey = 'orienta.askLocalSubmitted';
+const imageInputAccept = 'image/jpeg,image/png,image/webp,image/heic,image/heif';
+const supportedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']);
 
 type Page =
   | 'home'
@@ -1432,18 +1435,15 @@ function TranslateMenuPage({
     return () => window.clearInterval(interval);
   }, [isLoading, menuLoadingSteps.length]);
 
-  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-
+  async function handleSelectedImageFile(file: File) {
     if (!file) {
       return;
     }
 
     setError('');
 
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      setError('Please choose a JPEG, PNG, or WebP menu photo.');
+    if (!isSupportedImageFile(file)) {
+      setError('Please choose a JPEG, PNG, WebP, or HEIC menu photo.');
       return;
     }
 
@@ -1468,6 +1468,28 @@ function TranslateMenuPage({
       });
     } catch {
       setError('We could not open this photo. Please try another menu image.');
+    }
+  }
+
+  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (file) await handleSelectedImageFile(file);
+  }
+
+  async function handleNativeImagePick(event: React.MouseEvent, source: NativeImageSource) {
+    if (!canUseNativeImagePicker()) return;
+
+    event.preventDefault();
+    if (isLoading) return;
+
+    try {
+      const image = await pickNativeImage(source);
+      if (image) await handleSelectedImageFile(image);
+    } catch (pickerError) {
+      if (!isNativeImagePickerCancel(pickerError)) {
+        setError('We could not open this photo. Please try another menu image.');
+      }
     }
   }
 
@@ -1553,13 +1575,13 @@ function TranslateMenuPage({
               <img src={previewUrl} alt="Selected menu" />
             </div>
             <div className="menu-photo-actions" aria-label="Change selected photo">
-              <label className={`menu-small-action file-button ${isLoading ? 'disabled-button' : ''}`}>
+              <label className={`menu-small-action file-button ${isLoading ? 'disabled-button' : ''}`} onClick={(event) => handleNativeImagePick(event, 'camera')}>
                 Retake
-                <input accept="image/jpeg,image/png,image/webp" capture="environment" disabled={isLoading} type="file" onChange={handleFileChange} />
+                <input accept={imageInputAccept} capture="environment" disabled={isLoading} type="file" onChange={handleFileChange} />
               </label>
-              <label className={`menu-small-action file-button ${isLoading ? 'disabled-button' : ''}`}>
+              <label className={`menu-small-action file-button ${isLoading ? 'disabled-button' : ''}`} onClick={(event) => handleNativeImagePick(event, 'photos')}>
                 Change
-                <input accept="image/jpeg,image/png,image/webp" disabled={isLoading} type="file" onChange={handleFileChange} />
+                <input accept={imageInputAccept} disabled={isLoading} type="file" onChange={handleFileChange} />
               </label>
               <button className="menu-small-action" type="button" disabled={isLoading} onClick={removeImage}>Delete</button>
             </div>
@@ -1575,15 +1597,15 @@ function TranslateMenuPage({
 
       {!previewUrl ? (
         <div className="menu-upload-actions">
-          <label className={`menu-upload-button menu-upload-primary file-button ${isLoading ? 'disabled-button' : ''}`}>
+          <label className={`menu-upload-button menu-upload-primary file-button ${isLoading ? 'disabled-button' : ''}`} onClick={(event) => handleNativeImagePick(event, 'camera')}>
             <Camera size={20} strokeWidth={2.25} aria-hidden="true" />
             Take a Photo
-            <input accept="image/jpeg,image/png,image/webp" capture="environment" disabled={isLoading} type="file" onChange={handleFileChange} />
+            <input accept={imageInputAccept} capture="environment" disabled={isLoading} type="file" onChange={handleFileChange} />
           </label>
-          <label className={`menu-upload-button menu-upload-secondary file-button ${isLoading ? 'disabled-button' : ''}`}>
+          <label className={`menu-upload-button menu-upload-secondary file-button ${isLoading ? 'disabled-button' : ''}`} onClick={(event) => handleNativeImagePick(event, 'photos')}>
             <ReceiptText size={20} strokeWidth={2.25} aria-hidden="true" />
             Upload an Image
-            <input accept="image/jpeg,image/png,image/webp" disabled={isLoading} type="file" onChange={handleFileChange} />
+            <input accept={imageInputAccept} disabled={isLoading} type="file" onChange={handleFileChange} />
           </label>
         </div>
       ) : null}
@@ -1609,9 +1631,9 @@ function TranslateMenuPage({
             selectedDishId={menuSession.selectedDishId}
             onDishSelect={(dish) => onDishSelect(dish, screenRef.current?.scrollTop ?? 0)}
           />
-          <label className={`menu-upload-button menu-upload-secondary menu-upload-another file-button ${isLoading ? 'disabled-button' : ''}`}>
+          <label className={`menu-upload-button menu-upload-secondary menu-upload-another file-button ${isLoading ? 'disabled-button' : ''}`} onClick={(event) => handleNativeImagePick(event, 'photos')}>
             Upload Another Menu
-            <input accept="image/jpeg,image/png,image/webp" disabled={isLoading} type="file" onChange={handleFileChange} />
+            <input accept={imageInputAccept} disabled={isLoading} type="file" onChange={handleFileChange} />
           </label>
         </>
       ) : null}
@@ -1788,6 +1810,10 @@ function DishDetailInfo({ title, body }: { title: string; body: string }) {
   );
 }
 
+
+function isSupportedImageFile(file: File) {
+  return supportedImageTypes.has(file.type) || /\.(jpe?g|png|webp|heic|heif)$/i.test(file.name);
+}
 
 async function compressMenuImage(file: File): Promise<File> {
   const bitmap = await createImageBitmap(file);
@@ -2827,16 +2853,11 @@ function RailTicketAiPage({
     });
   }, []);
 
-  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-
-    if (!file) return;
-
+  async function handleSelectedImageFile(file: File) {
     setStatusMessage('');
 
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      onSessionChange((current) => ({ ...normalizeRailTicketSession(current), error: 'Please choose a JPEG, PNG, or WebP ticket screenshot.' }));
+    if (!isSupportedImageFile(file)) {
+      onSessionChange((current) => ({ ...normalizeRailTicketSession(current), error: 'Please choose a JPEG, PNG, WebP, or HEIC ticket screenshot.' }));
       return;
     }
 
@@ -2861,6 +2882,28 @@ function RailTicketAiPage({
       });
     } catch {
       onSessionChange((current) => ({ ...normalizeRailTicketSession(current), error: 'We could not read this image. Please try another screenshot.' }));
+    }
+  }
+
+  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (file) await handleSelectedImageFile(file);
+  }
+
+  async function handleNativeImagePick(event: React.MouseEvent, source: NativeImageSource) {
+    if (!canUseNativeImagePicker()) return;
+
+    event.preventDefault();
+    if (isLoading) return;
+
+    try {
+      const image = await pickNativeImage(source);
+      if (image) await handleSelectedImageFile(image);
+    } catch (pickerError) {
+      if (!isNativeImagePickerCancel(pickerError)) {
+        onSessionChange((current) => ({ ...normalizeRailTicketSession(current), error: 'We could not read this image. Please try another screenshot.' }));
+      }
     }
   }
 
@@ -2954,13 +2997,13 @@ function RailTicketAiPage({
                   <img src={session.previewUrl} alt="Selected ticket screenshot" />
                 </div>
                 <div className="menu-photo-actions" aria-label="Change selected ticket screenshot">
-                  <label className="menu-small-action file-button">
+                  <label className="menu-small-action file-button" onClick={(event) => handleNativeImagePick(event, 'camera')}>
                     Replace
-                    <input accept="image/jpeg,image/png,image/webp" disabled={isLoading} type="file" onChange={handleFileChange} />
+                    <input accept={imageInputAccept} disabled={isLoading} type="file" onChange={handleFileChange} />
                   </label>
-                  <label className="menu-small-action file-button">
+                  <label className="menu-small-action file-button" onClick={(event) => handleNativeImagePick(event, 'photos')}>
                     Change
-                    <input accept="image/jpeg,image/png,image/webp" disabled={isLoading} type="file" onChange={handleFileChange} />
+                    <input accept={imageInputAccept} disabled={isLoading} type="file" onChange={handleFileChange} />
                   </label>
                   <button className="menu-small-action" type="button" disabled={isLoading} onClick={removeImage}>Remove</button>
                 </div>
@@ -2971,15 +3014,15 @@ function RailTicketAiPage({
                 <strong>Upload your ticket.</strong>
                 <small>Use a 12306, Trip.com, China Railway, or order screenshot.</small>
                 <div className="menu-upload-actions">
-                  <label className="menu-upload-button menu-upload-primary file-button">
+                  <label className="menu-upload-button menu-upload-primary file-button" onClick={(event) => handleNativeImagePick(event, 'camera')}>
                     <Camera size={19} aria-hidden="true" />
                     Take Photo
-                    <input accept="image/jpeg,image/png,image/webp" capture="environment" disabled={isLoading} type="file" onChange={handleFileChange} />
+                    <input accept={imageInputAccept} capture="environment" disabled={isLoading} type="file" onChange={handleFileChange} />
                   </label>
-                  <label className="menu-upload-button menu-upload-secondary file-button">
+                  <label className="menu-upload-button menu-upload-secondary file-button" onClick={(event) => handleNativeImagePick(event, 'photos')}>
                     <ReceiptText size={19} aria-hidden="true" />
                     Upload Screenshot
-                    <input accept="image/jpeg,image/png,image/webp" disabled={isLoading} type="file" onChange={handleFileChange} />
+                    <input accept={imageInputAccept} disabled={isLoading} type="file" onChange={handleFileChange} />
                   </label>
                 </div>
               </div>
@@ -3491,17 +3534,13 @@ function UnderstandProductPage({ onBack }: { onBack: () => void }) {
   const [isLoading, setIsLoading] = useState(false);
   const maxImageBytes = 8 * 1024 * 1024;
 
-  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
-
+  async function handleSelectedImageFile(file: File) {
     setError('');
     setStatusMessage('');
     setResult(null);
 
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      setError('Please choose a JPEG, PNG, or WebP image.');
+    if (!isSupportedImageFile(file)) {
+      setError('Please choose a JPEG, PNG, WebP, or HEIC image.');
       return;
     }
 
@@ -3517,6 +3556,28 @@ function UnderstandProductPage({ onBack }: { onBack: () => void }) {
       setPreviewUrl(URL.createObjectURL(image));
     } catch {
       setError('We could not open this photo. Please try another product image.');
+    }
+  }
+
+  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (file) await handleSelectedImageFile(file);
+  }
+
+  async function handleNativeImagePick(event: React.MouseEvent, source: NativeImageSource) {
+    if (!canUseNativeImagePicker()) return;
+
+    event.preventDefault();
+    if (isLoading) return;
+
+    try {
+      const image = await pickNativeImage(source);
+      if (image) await handleSelectedImageFile(image);
+    } catch (pickerError) {
+      if (!isNativeImagePickerCancel(pickerError)) {
+        setError('We could not open this photo. Please try another product image.');
+      }
     }
   }
 
@@ -3585,13 +3646,13 @@ function UnderstandProductPage({ onBack }: { onBack: () => void }) {
               <img src={previewUrl} alt="Selected product" />
             </div>
             <div className="menu-photo-actions" aria-label="Change selected photo">
-              <label className={`menu-small-action file-button ${isLoading ? 'disabled-button' : ''}`}>
+              <label className={`menu-small-action file-button ${isLoading ? 'disabled-button' : ''}`} onClick={(event) => handleNativeImagePick(event, 'camera')}>
                 Retake
-                <input accept="image/jpeg,image/png,image/webp" capture="environment" disabled={isLoading} type="file" onChange={handleFileChange} />
+                <input accept={imageInputAccept} capture="environment" disabled={isLoading} type="file" onChange={handleFileChange} />
               </label>
-              <label className={`menu-small-action file-button ${isLoading ? 'disabled-button' : ''}`}>
+              <label className={`menu-small-action file-button ${isLoading ? 'disabled-button' : ''}`} onClick={(event) => handleNativeImagePick(event, 'photos')}>
                 Change
-                <input accept="image/jpeg,image/png,image/webp" disabled={isLoading} type="file" onChange={handleFileChange} />
+                <input accept={imageInputAccept} disabled={isLoading} type="file" onChange={handleFileChange} />
               </label>
               <button className="menu-small-action" type="button" disabled={isLoading} onClick={removeImage}>Delete</button>
             </div>
@@ -3607,15 +3668,15 @@ function UnderstandProductPage({ onBack }: { onBack: () => void }) {
 
       {!previewUrl ? (
         <div className="menu-upload-actions">
-          <label className={`menu-upload-button menu-upload-primary file-button ${isLoading ? 'disabled-button' : ''}`}>
+          <label className={`menu-upload-button menu-upload-primary file-button ${isLoading ? 'disabled-button' : ''}`} onClick={(event) => handleNativeImagePick(event, 'camera')}>
             <Camera size={20} strokeWidth={2.25} aria-hidden="true" />
             Take a Photo
-            <input accept="image/jpeg,image/png,image/webp" capture="environment" disabled={isLoading} type="file" onChange={handleFileChange} />
+            <input accept={imageInputAccept} capture="environment" disabled={isLoading} type="file" onChange={handleFileChange} />
           </label>
-          <label className={`menu-upload-button menu-upload-secondary file-button ${isLoading ? 'disabled-button' : ''}`}>
+          <label className={`menu-upload-button menu-upload-secondary file-button ${isLoading ? 'disabled-button' : ''}`} onClick={(event) => handleNativeImagePick(event, 'photos')}>
             <ReceiptText size={20} strokeWidth={2.25} aria-hidden="true" />
             Upload an Image
-            <input accept="image/jpeg,image/png,image/webp" disabled={isLoading} type="file" onChange={handleFileChange} />
+            <input accept={imageInputAccept} disabled={isLoading} type="file" onChange={handleFileChange} />
           </label>
         </div>
       ) : null}
@@ -4082,6 +4143,7 @@ function AskLocalPage({
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showOptionalDetails, setShowOptionalDetails] = useState(false);
+  const maxPhotoBytes = 8 * 1024 * 1024;
   const canSubmit = question.trim().length > 0 && isValidEmail(email) && !isSubmitting;
 
   React.useEffect(() => {
@@ -4101,6 +4163,48 @@ function AskLocalPage({
   React.useEffect(() => {
     window.localStorage.setItem(askLocalDraftStorageKey, JSON.stringify({ question, location, context, email }));
   }, [question, location, context, email]);
+
+  async function handlePhotoFile(file: File) {
+    if (!isSupportedImageFile(file)) {
+      setError('Please choose a JPEG, PNG, WebP, or HEIC image.');
+      return;
+    }
+
+    try {
+      const image = await compressMenuImage(file);
+      if (image.size > maxPhotoBytes) {
+        setError('Please choose an image smaller than 8 MB.');
+        return;
+      }
+
+      setError('');
+      setPhoto(image);
+    } catch {
+      setError('We could not open this photo. Please try another image.');
+    }
+  }
+
+  async function handlePhotoInputChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (file) await handlePhotoFile(file);
+  }
+
+  async function handleNativePhotoPick(event: React.MouseEvent) {
+    if (!canUseNativeImagePicker()) return;
+
+    event.preventDefault();
+    if (isSubmitting) return;
+
+    try {
+      const image = await pickNativeImage('prompt');
+      if (image) await handlePhotoFile(image);
+    } catch (pickerError) {
+      if (!isNativeImagePickerCancel(pickerError)) {
+        setError('We could not open this photo. Please try another image.');
+      }
+    }
+  }
 
   async function submitQuestion() {
     if (isSubmitting) return;
@@ -4165,11 +4269,11 @@ function AskLocalPage({
           <small>We'll send the answer to this email. Your email is only used to reply to this question.</small>
         </label>
 
-        <label className="ask-local-photo-dropzone">
+        <label className="ask-local-photo-dropzone" onClick={handleNativePhotoPick}>
           <Plus size={24} aria-hidden="true" />
           <strong>Add a photo</strong>
           <small>Sign, menu, ticket or screenshot · Optional</small>
-          <input accept="image/jpeg,image/png,image/webp" type="file" onChange={(event) => setPhoto(event.target.files?.[0] ?? null)} />
+          <input accept={imageInputAccept} type="file" onChange={handlePhotoInputChange} />
         </label>
         {photo ? <p className="prototype-note ask-local-photo-name">{photo.name}</p> : null}
         <small className="ask-local-privacy-note">Don't upload passwords, payment codes or full ID documents.</small>
