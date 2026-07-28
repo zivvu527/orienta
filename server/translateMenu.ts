@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
+import { extractJsonText, getAiApiKey, getAiApiMode, getAiBaseUrl, getAiModel, withAiTimeout } from './aiConfig';
 import { TranslateMenuResultSchema, translateMenuJsonSchema } from './types';
 
-const DEFAULT_TIMEOUT_MS = 45_000;
 const menuInstructions = [
   'You are helping an international traveler understand a restaurant menu in China.',
   'Read the menu image and return only the requested JSON structure.',
@@ -25,46 +25,36 @@ const relaxedMenuInstructions = [
 ].join(' ');
 
 export async function translateMenuImage(file: Express.Multer.File) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  const model = process.env.OPENAI_MENU_MODEL;
-  const baseURL = process.env.OPENAI_BASE_URL;
-  const apiMode = process.env.OPENAI_API_MODE ?? 'responses';
-
-  if (!apiKey) {
-    throw new Error('OPENAI_API_KEY is not configured.');
-  }
-
-  if (!model) {
-    throw new Error('OPENAI_MENU_MODEL is not configured.');
-  }
+  const apiKey = getAiApiKey();
+  const model = getAiModel('vision');
+  const baseURL = getAiBaseUrl();
+  const apiMode = getAiApiMode();
 
   const client = new OpenAI({
     apiKey,
     baseURL: baseURL || undefined,
   });
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
 
-  try {
-    const imageUrl = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
-    const rawText = apiMode === 'chat'
-      ? await translateWithChatCompletionsRaw(apiKey, baseURL, model, imageUrl, menuInstructions, controller.signal)
-      : await translateWithResponses(client, model, imageUrl, menuInstructions, controller.signal);
+  const imageUrl = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+  const rawText = await withAiTimeout('vision', (signal) => (
+    apiMode === 'chat'
+      ? translateWithChatCompletionsRaw(apiKey, baseURL, model, imageUrl, menuInstructions, signal)
+      : translateWithResponses(client, model, imageUrl, menuInstructions, signal)
+  ));
 
-    const firstResult = parseMenuResult(rawText);
+  const firstResult = parseMenuResult(rawText);
 
-    if (!shouldRetryMenuRecognition(firstResult)) {
-      return firstResult;
-    }
-
-    const relaxedRawText = apiMode === 'chat'
-      ? await translateWithChatCompletionsRaw(apiKey, baseURL, model, imageUrl, relaxedMenuInstructions, controller.signal)
-      : await translateWithResponses(client, model, imageUrl, relaxedMenuInstructions, controller.signal);
-
-    return parseMenuResult(relaxedRawText);
-  } finally {
-    clearTimeout(timeout);
+  if (!shouldRetryMenuRecognition(firstResult)) {
+    return firstResult;
   }
+
+  const relaxedRawText = await withAiTimeout('vision', (signal) => (
+    apiMode === 'chat'
+      ? translateWithChatCompletionsRaw(apiKey, baseURL, model, imageUrl, relaxedMenuInstructions, signal)
+      : translateWithResponses(client, model, imageUrl, relaxedMenuInstructions, signal)
+  ));
+
+  return parseMenuResult(relaxedRawText);
 }
 
 async function translateWithResponses(
@@ -248,18 +238,6 @@ function shouldRetryWithoutJsonSchema(error: unknown) {
     || message.includes('json_schema')
     || message.includes('unsupported')
     || message.includes('invalid');
-}
-
-function extractJsonText(rawText: string) {
-  const trimmed = rawText.trim();
-  if (!trimmed.startsWith('```')) {
-    return trimmed;
-  }
-
-  return trimmed
-    .replace(/^```(?:json)?/i, '')
-    .replace(/```$/i, '')
-    .trim();
 }
 
 function parseMenuResult(rawText: string) {

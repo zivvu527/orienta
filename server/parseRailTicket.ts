@@ -1,7 +1,6 @@
 import OpenAI from 'openai';
+import { extractJsonText, getAiApiKey, getAiApiMode, getAiBaseUrl, getAiModel, withAiTimeout } from './aiConfig';
 import { RailTicketResultSchema, railTicketJsonSchema } from './types';
-
-const DEFAULT_TIMEOUT_MS = 45_000;
 
 const railTicketInstructions = [
   'You help international travelers understand Chinese high-speed rail ticket or order screenshots.',
@@ -26,33 +25,20 @@ const railTicketInstructions = [
 ].join(' ');
 
 export async function parseRailTicketImage(file: Express.Multer.File) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  const model = process.env.OPENAI_MENU_MODEL;
-  const baseURL = process.env.OPENAI_BASE_URL;
-  const apiMode = process.env.OPENAI_API_MODE ?? 'responses';
+  const apiKey = getAiApiKey();
+  const model = getAiModel('vision');
+  const baseURL = getAiBaseUrl();
+  const apiMode = getAiApiMode();
 
-  if (!apiKey) {
-    throw new Error('OPENAI_API_KEY is not configured.');
-  }
+  const imageUrl = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+  const rawText = await withAiTimeout('vision', (signal) => (
+    apiMode === 'chat'
+      ? parseWithChatCompletions(apiKey, baseURL, model, imageUrl, signal)
+      : parseWithResponses(apiKey, baseURL, model, imageUrl, signal)
+  ));
 
-  if (!model) {
-    throw new Error('OPENAI_MENU_MODEL is not configured.');
-  }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
-
-  try {
-    const imageUrl = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
-    const rawText = apiMode === 'chat'
-      ? await parseWithChatCompletions(apiKey, baseURL, model, imageUrl, controller.signal)
-      : await parseWithResponses(apiKey, baseURL, model, imageUrl, controller.signal);
-
-    const parsed = JSON.parse(extractJsonText(rawText));
-    return RailTicketResultSchema.parse(normalizeRailTicketResult(parsed));
-  } finally {
-    clearTimeout(timeout);
-  }
+  const parsed = JSON.parse(extractJsonText(rawText));
+  return RailTicketResultSchema.parse(normalizeRailTicketResult(parsed));
 }
 
 function normalizeRailTicketResult(value: unknown) {
@@ -398,14 +384,4 @@ function extractChatContent(rawText: string) {
 function shouldRetryWithoutResponseFormat(errorText: string) {
   const normalized = errorText.toLowerCase();
   return ['response_format', 'json_object', 'unsupported', 'not support', 'invalid parameter', 'bad request'].some((pattern) => normalized.includes(pattern));
-}
-
-function extractJsonText(rawText: string) {
-  const trimmed = rawText.trim();
-  if (!trimmed.startsWith('```')) return trimmed;
-
-  return trimmed
-    .replace(/^```(?:json)?/i, '')
-    .replace(/```$/i, '')
-    .trim();
 }

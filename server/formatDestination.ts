@@ -1,11 +1,10 @@
 import OpenAI from 'openai';
+import { extractJsonText, getAiApiKey, getAiApiMode, getAiBaseUrl, getAiModel, withAiTimeout } from './aiConfig';
 import {
   AddressTranslationResultSchema,
   addressTranslationJsonSchema,
   type AddressTranslationResult,
 } from './types';
-
-const DEFAULT_TIMEOUT_MS = 40_000;
 
 const addressInstructions = [
   'You are a China address normalization assistant, not a general translator.',
@@ -27,32 +26,19 @@ const addressInstructions = [
 ].join(' ');
 
 export async function formatDestinationAddress(destination: string) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  const model = process.env.OPENAI_MENU_MODEL;
-  const baseURL = process.env.OPENAI_BASE_URL;
-  const apiMode = process.env.OPENAI_API_MODE ?? 'responses';
+  const apiKey = getAiApiKey();
+  const model = getAiModel('text');
+  const baseURL = getAiBaseUrl();
+  const apiMode = getAiApiMode();
 
-  if (!apiKey) {
-    throw new Error('OPENAI_API_KEY is not configured.');
-  }
+  const rawText = await withAiTimeout('text', (signal) => (
+    apiMode === 'chat'
+      ? formatWithChatCompletions(apiKey, baseURL, model, destination, signal)
+      : formatWithResponses(apiKey, baseURL, model, destination, signal)
+  ));
 
-  if (!model) {
-    throw new Error('OPENAI_MENU_MODEL is not configured.');
-  }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
-
-  try {
-    const rawText = apiMode === 'chat'
-      ? await formatWithChatCompletions(apiKey, baseURL, model, destination, controller.signal)
-      : await formatWithResponses(apiKey, baseURL, model, destination, controller.signal);
-
-    const parsed = JSON.parse(extractJsonText(rawText));
-    return normalizeAddressResult(AddressTranslationResultSchema.parse(parsed));
-  } finally {
-    clearTimeout(timeout);
-  }
+  const parsed = JSON.parse(extractJsonText(rawText));
+  return normalizeAddressResult(AddressTranslationResultSchema.parse(parsed));
 }
 
 async function formatWithResponses(
@@ -148,18 +134,6 @@ async function formatWithChatCompletions(
   }
 
   return content;
-}
-
-function extractJsonText(rawText: string) {
-  const trimmed = rawText.trim();
-  if (!trimmed.startsWith('```')) {
-    return trimmed;
-  }
-
-  return trimmed
-    .replace(/^```(?:json)?/i, '')
-    .replace(/```$/i, '')
-    .trim();
 }
 
 function normalizeAddressResult(result: AddressTranslationResult) {

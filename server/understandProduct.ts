@@ -1,7 +1,6 @@
 import OpenAI from 'openai';
+import { extractJsonText, getAiApiKey, getAiApiMode, getAiBaseUrl, getAiModel, withAiTimeout } from './aiConfig';
 import { ProductUnderstandResultSchema, productUnderstandJsonSchema } from './types';
-
-const DEFAULT_TIMEOUT_MS = 45_000;
 
 const productInstructions = [
   'You help international travelers in China understand a product from a photo.',
@@ -25,33 +24,20 @@ const productInstructions = [
 ].join(' ');
 
 export async function understandProductImage(file: Express.Multer.File) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  const model = process.env.OPENAI_MENU_MODEL;
-  const baseURL = process.env.OPENAI_BASE_URL;
-  const apiMode = process.env.OPENAI_API_MODE ?? 'responses';
+  const apiKey = getAiApiKey();
+  const model = getAiModel('vision');
+  const baseURL = getAiBaseUrl();
+  const apiMode = getAiApiMode();
 
-  if (!apiKey) {
-    throw new Error('OPENAI_API_KEY is not configured.');
-  }
+  const imageUrl = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+  const rawText = await withAiTimeout('vision', (signal) => (
+    apiMode === 'chat'
+      ? understandWithChatCompletions(apiKey, baseURL, model, imageUrl, signal)
+      : understandWithResponses(apiKey, baseURL, model, imageUrl, signal)
+  ));
 
-  if (!model) {
-    throw new Error('OPENAI_MENU_MODEL is not configured.');
-  }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
-
-  try {
-    const imageUrl = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
-    const rawText = apiMode === 'chat'
-      ? await understandWithChatCompletions(apiKey, baseURL, model, imageUrl, controller.signal)
-      : await understandWithResponses(apiKey, baseURL, model, imageUrl, controller.signal);
-
-    const parsed = JSON.parse(extractJsonText(rawText));
-    return ProductUnderstandResultSchema.parse(normalizeProductResult(parsed));
-  } finally {
-    clearTimeout(timeout);
-  }
+  const parsed = JSON.parse(extractJsonText(rawText));
+  return ProductUnderstandResultSchema.parse(normalizeProductResult(parsed));
 }
 
 async function understandWithResponses(
@@ -331,14 +317,4 @@ function normalizeProductResult(value: unknown) {
   });
 
   return result;
-}
-
-function extractJsonText(rawText: string) {
-  const trimmed = rawText.trim();
-  if (!trimmed.startsWith('```')) return trimmed;
-
-  return trimmed
-    .replace(/^```(?:json)?/i, '')
-    .replace(/```$/i, '')
-    .trim();
 }

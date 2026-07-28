@@ -1,7 +1,6 @@
 import OpenAI from 'openai';
+import { extractJsonText, getAiApiKey, getAiApiMode, getAiBaseUrl, getAiModel, withAiTimeout } from './aiConfig';
 import { DishExploreResultSchema, dishExploreJsonSchema } from './types';
-
-const DEFAULT_TIMEOUT_MS = 35_000;
 
 const dishInstructions = [
   'You are helping an international traveler in China understand one Chinese dish before ordering.',
@@ -15,32 +14,19 @@ const dishInstructions = [
 ].join(' ');
 
 export async function exploreDish(dishName: string) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  const model = process.env.OPENAI_MENU_MODEL;
-  const baseURL = process.env.OPENAI_BASE_URL;
-  const apiMode = process.env.OPENAI_API_MODE ?? 'responses';
+  const apiKey = getAiApiKey();
+  const model = getAiModel('text');
+  const baseURL = getAiBaseUrl();
+  const apiMode = getAiApiMode();
 
-  if (!apiKey) {
-    throw new Error('OPENAI_API_KEY is not configured.');
-  }
+  const rawText = await withAiTimeout('text', (signal) => (
+    apiMode === 'chat'
+      ? exploreWithChatCompletions(apiKey, baseURL, model, dishName, signal)
+      : exploreWithResponses(apiKey, baseURL, model, dishName, signal)
+  ));
 
-  if (!model) {
-    throw new Error('OPENAI_MENU_MODEL is not configured.');
-  }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
-
-  try {
-    const rawText = apiMode === 'chat'
-      ? await exploreWithChatCompletions(apiKey, baseURL, model, dishName, controller.signal)
-      : await exploreWithResponses(apiKey, baseURL, model, dishName, controller.signal);
-
-    const parsed = JSON.parse(extractJsonText(rawText));
-    return DishExploreResultSchema.parse(parsed);
-  } finally {
-    clearTimeout(timeout);
-  }
+  const parsed = JSON.parse(extractJsonText(rawText));
+  return DishExploreResultSchema.parse(parsed);
 }
 
 async function exploreWithResponses(
@@ -136,16 +122,4 @@ async function exploreWithChatCompletions(
   }
 
   return content;
-}
-
-function extractJsonText(rawText: string) {
-  const trimmed = rawText.trim();
-  if (!trimmed.startsWith('```')) {
-    return trimmed;
-  }
-
-  return trimmed
-    .replace(/^```(?:json)?/i, '')
-    .replace(/```$/i, '')
-    .trim();
 }

@@ -44,6 +44,14 @@ const maxMenuImageBytes = maxMenuImageMb * 1024 * 1024;
 const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const replyEmailSendLocks = new Set<number>();
 
+process.on('unhandledRejection', (error) => {
+  console.error('[process:unhandled-rejection]', error);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('[process:uncaught-exception]', error);
+});
+
 app.use(express.json({ limit: '32kb' }));
 
 const upload = multer({
@@ -73,7 +81,7 @@ app.post('/api/local-questions', questionSubmissionRateLimit, upload.single('pho
       response.status(500).json({ error: 'We could not submit your question. Please try again.' });
       return;
     }
-    void sendNewQuestionAdminNotification({
+    queueNewQuestionAdminNotification({
       privateToken: result.privateToken,
       question: result.question,
       location: result.location,
@@ -269,7 +277,7 @@ app.post('/api/translate-menu', upload.single('menu_image'), async (request, res
       return;
     }
 
-    if (message.includes('OPENAI_API_KEY') || message.includes('OPENAI_MENU_MODEL')) {
+    if (isAiConfigurationError(message)) {
       response.status(500).json({ error: 'Menu translation is not configured yet.' });
       return;
     }
@@ -303,7 +311,7 @@ app.post('/api/parse-rail-ticket', upload.single('ticket_image'), async (request
       return;
     }
 
-    if (message.includes('OPENAI_API_KEY') || message.includes('OPENAI_MENU_MODEL')) {
+    if (isAiConfigurationError(message)) {
       response.status(500).json({ error: 'Ticket understanding is not configured yet.' });
       return;
     }
@@ -337,7 +345,7 @@ app.post('/api/understand-product', upload.single('product_image'), async (reque
       return;
     }
 
-    if (message.includes('OPENAI_API_KEY') || message.includes('OPENAI_MENU_MODEL')) {
+    if (isAiConfigurationError(message)) {
       response.status(500).json({ error: 'Product understanding is not configured yet.' });
       return;
     }
@@ -368,7 +376,7 @@ app.post('/api/explore-dish', async (request, response) => {
     console.error('[explore-dish]', error);
 
     const message = error instanceof Error ? error.message : '';
-    if (message.includes('OPENAI_API_KEY') || message.includes('OPENAI_MENU_MODEL')) {
+    if (isAiConfigurationError(message)) {
       response.status(500).json({ error: 'Dish exploration is not configured yet.' });
       return;
     }
@@ -404,7 +412,7 @@ app.post('/api/format-destination', async (request, response) => {
     console.error('[format-destination]', error);
 
     const message = error instanceof Error ? error.message : '';
-    if (message.includes('OPENAI_API_KEY') || message.includes('OPENAI_MENU_MODEL')) {
+    if (isAiConfigurationError(message)) {
       response.status(500).json({ error: 'Destination formatting is not configured yet.' });
       return;
     }
@@ -528,6 +536,36 @@ function getRetryEmailMessage(status?: string) {
   return 'Email delivery failed.';
 }
 
+function isAiConfigurationError(message: string) {
+  return [
+    'OPENAI_API_KEY',
+    'OPENAI_MENU_MODEL',
+    'OPENAI_TEXT_MODEL',
+    'OPENAI_VISION_MODEL',
+  ].some((name) => message.includes(name));
+}
+
+function queueNewQuestionAdminNotification(question: {
+  privateToken: string;
+  question: string;
+  location: string;
+  context: string;
+  email: string;
+  createdAt: string;
+  hasPhoto: boolean;
+}) {
+  setImmediate(() => {
+    sendNewQuestionAdminNotification(question).catch((error) => {
+      console.error('[email:admin-notification:unhandled]', error instanceof Error ? error.message : error);
+      safeRecordAdminNotification(question.privateToken, {
+        status: 'failed',
+        error: 'Admin notification failed after question submission.',
+        provider: 'resend',
+      });
+    });
+  });
+}
+
 async function sendNewQuestionAdminNotification(question: {
   privateToken: string;
   question: string;
@@ -537,19 +575,19 @@ async function sendNewQuestionAdminNotification(question: {
   createdAt: string;
   hasPhoto: boolean;
 }) {
-  const adminNotificationEmail = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL;
-  if (!adminNotificationEmail) {
-    recordAdminNotification(question.privateToken, {
-      status: 'not_configured',
-      error: 'Admin notification email is not configured.',
-      provider: 'resend',
-    });
-    return;
-  }
-
-  const appUrl = getPublicSiteUrl();
-  const adminQuestion = getAdminQuestionByToken(question.privateToken);
   try {
+    const adminNotificationEmail = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL;
+    if (!adminNotificationEmail) {
+      safeRecordAdminNotification(question.privateToken, {
+        status: 'not_configured',
+        error: 'Admin notification email is not configured.',
+        provider: 'resend',
+      });
+      return;
+    }
+
+    const appUrl = getPublicSiteUrl();
+    const adminQuestion = getAdminQuestionByToken(question.privateToken);
     const result = await sendAdminQuestionNotification({
       to: adminNotificationEmail,
       question: question.question,
@@ -560,7 +598,7 @@ async function sendNewQuestionAdminNotification(question: {
       hasPhoto: question.hasPhoto,
       adminUrl: adminQuestion ? `${appUrl}/admin/questions/${adminQuestion.id}` : `${appUrl}/admin/questions`,
     });
-    recordAdminNotification(question.privateToken, {
+    safeRecordAdminNotification(question.privateToken, {
       status: result.status,
       error: result.error,
       provider: result.provider,
@@ -568,11 +606,24 @@ async function sendNewQuestionAdminNotification(question: {
     });
   } catch (error) {
     console.error('[email:admin-notification]', error instanceof Error ? error.message : error);
-    recordAdminNotification(question.privateToken, {
+    safeRecordAdminNotification(question.privateToken, {
       status: 'failed',
       error: 'Admin notification failed.',
       provider: 'resend',
     });
+  }
+}
+
+function safeRecordAdminNotification(privateToken: string, delivery: {
+  status: 'pending' | 'sent' | 'failed' | 'development_logged' | 'not_configured';
+  error?: string;
+  provider?: string;
+  providerMessageId?: string;
+}) {
+  try {
+    recordAdminNotification(privateToken, delivery);
+  } catch (error) {
+    console.error('[email:admin-notification:record]', error instanceof Error ? error.message : error);
   }
 }
 
