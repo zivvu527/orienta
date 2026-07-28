@@ -1739,13 +1739,16 @@ function DishDetailInfo({ title, body }: { title: string; body: string }) {
 
 
 async function compressMenuImage(file: File): Promise<File> {
-  if (file.size <= 2_500_000) {
+  const bitmap = await createImageBitmap(file);
+  const maxDimension = 1600;
+  const maxOriginalBytes = 1_200_000;
+  const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
+
+  if (scale === 1 && file.size <= maxOriginalBytes && file.type === 'image/jpeg') {
+    bitmap.close();
     return file;
   }
 
-  const bitmap = await createImageBitmap(file);
-  const maxDimension = 1600;
-  const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(bitmap.width * scale);
   canvas.height = Math.round(bitmap.height * scale);
@@ -1763,11 +1766,11 @@ async function compressMenuImage(file: File): Promise<File> {
     canvas.toBlob(resolve, 'image/jpeg', 0.82);
   });
 
-  if (!blob || blob.size >= file.size) {
+  if (!blob || (scale === 1 && blob.size >= file.size)) {
     return file;
   }
 
-  return new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' });
+  return new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg', lastModified: Date.now() });
 }
 
 function PhraseListPage({ title, onBack, phrases, categories, onSelect, showMostUsed, warning }: { title: string; onBack: () => void; phrases: Phrase[]; categories: CategoryLabel[]; onSelect: (phrase: Phrase) => void; showMostUsed?: boolean; warning?: string }) {
