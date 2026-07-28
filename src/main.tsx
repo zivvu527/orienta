@@ -1396,9 +1396,17 @@ function TranslateMenuPage({
 }) {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState(0);
   const screenRef = React.useRef<HTMLElement | null>(null);
   const maxImageBytes = 8 * 1024 * 1024;
   const { selectedFile, previewUrl, result } = menuSession;
+  const menuLoadingSteps = [
+    'Reading the menu photo...',
+    'Finding dish names and prices...',
+    'Writing simple explanations...',
+    'Organizing your menu...',
+    'Almost ready...',
+  ];
 
   React.useEffect(() => {
     if (!menuSession.result || !screenRef.current) return;
@@ -1408,6 +1416,19 @@ function TranslateMenuPage({
       }
     });
   }, [menuSession.result, menuSession.scrollTop]);
+
+  React.useEffect(() => {
+    if (!isLoading) {
+      setLoadingStep(0);
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      setLoadingStep((step) => Math.min(step + 1, menuLoadingSteps.length - 1));
+    }, 9_000);
+
+    return () => window.clearInterval(interval);
+  }, [isLoading, menuLoadingSteps.length]);
 
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -1567,20 +1588,48 @@ function TranslateMenuPage({
 
       {selectedFile ? (
         <button className="menu-understand-button" type="button" disabled={isLoading} onClick={translateMenu}>
-          {isLoading ? 'Understanding your menu...' : result || error ? 'Try Again' : 'Understand Menu'}
+          {isLoading ? 'Understanding your menu...' : result ? 'Try This Photo Again' : error ? 'Try Again' : 'Understand Menu'}
         </button>
       ) : null}
 
-      {isLoading ? <div className="menu-loading menu-calm-loading"><div className="spinner" /><p>Understanding your menu...</p></div> : null}
-      {error ? <div className="error-panel menu-error-panel"><strong>We couldn't read this menu clearly.</strong><p>{error}</p></div> : null}
-      {result ? (
-        <MenuTranslationResult
-          result={result}
-          selectedDishId={menuSession.selectedDishId}
-          onDishSelect={(dish) => onDishSelect(dish, screenRef.current?.scrollTop ?? 0)}
+      {isLoading ? (
+        <MenuLoadingProgress
+          label="Understanding your menu..."
+          message={menuLoadingSteps[loadingStep]}
+          progress={Math.min(28 + loadingStep * 17, 92)}
         />
       ) : null}
+      {error ? <div className="error-panel menu-error-panel"><strong>We couldn't read this menu clearly.</strong><p>{error}</p></div> : null}
+      {result ? (
+        <>
+          <MenuTranslationResult
+            result={result}
+            selectedDishId={menuSession.selectedDishId}
+            onDishSelect={(dish) => onDishSelect(dish, screenRef.current?.scrollTop ?? 0)}
+          />
+          <label className={`menu-upload-button menu-upload-secondary menu-upload-another file-button ${isLoading ? 'disabled-button' : ''}`}>
+            Upload Another Menu
+            <input accept="image/jpeg,image/png,image/webp" disabled={isLoading} type="file" onChange={handleFileChange} />
+          </label>
+        </>
+      ) : null}
     </section>
+  );
+}
+
+function MenuLoadingProgress({ label, message, progress }: { label: string; message: string; progress: number }) {
+  return (
+    <div className="menu-loading menu-calm-loading" role="status" aria-live="polite">
+      <div className="spinner" />
+      <div className="menu-loading-copy">
+        <p>{label}</p>
+        <small>{message}</small>
+      </div>
+      <div className="menu-progress-track" aria-hidden="true">
+        <span style={{ width: `${progress}%` }} />
+      </div>
+      <em>Detailed menus can take up to about a minute.</em>
+    </div>
   );
 }
 

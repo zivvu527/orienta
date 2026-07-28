@@ -1117,6 +1117,58 @@ h1 {
   box-shadow: 0 4px 0 rgba(31, 32, 28, 0.06);
 }
 
+.understand-menu-screen .menu-calm-loading {
+  align-items: center;
+  width: 100%;
+  border-color: #1f201c;
+  box-shadow: 0 5px 0 rgba(31, 32, 28, 0.11);
+}
+
+.menu-loading-copy {
+  display: grid;
+  gap: 4px;
+  text-align: center;
+}
+
+.menu-loading-copy small {
+  color: #6c6c61;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.menu-progress-track {
+  width: min(100%, 320px);
+  height: 12px;
+  overflow: hidden;
+  border: 2px solid #1f201c;
+  border-radius: 999px;
+  background: #fffdf7;
+}
+
+.menu-progress-track span {
+  display: block;
+  height: 100%;
+  border-right: 2px solid #1f201c;
+  border-radius: inherit;
+  background: #c8d9a0;
+  transition: width 700ms ease;
+}
+
+.menu-calm-loading em {
+  max-width: 320px;
+  color: #6c6c61;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.menu-upload-another {
+  margin-top: 12px;
+  min-height: 58px;
+}
+
 .menu-error-panel {
   border-width: 1.5px;
   border-radius: 22px;
