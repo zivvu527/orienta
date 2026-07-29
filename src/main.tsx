@@ -375,7 +375,7 @@ type ExchangeRatesResult = {
   base: string;
   rates: Record<string, number>;
   updatedAt: string;
-  source?: 'live' | 'fallback';
+  provider?: string;
 };
 
 type ShoppingPriceSession = {
@@ -441,6 +441,7 @@ type AdminQuestion = AdminQuestionSummary & {
 type AdminQuestionUpdateResponse = AdminQuestion | {
   question: AdminQuestion;
   emailDeliveryMessage?: string;
+  adminNotificationMessage?: string;
 };
 
 function upsertSavedAddress(items: SavedAddress[], address: SavedAddress) {
@@ -4012,11 +4013,9 @@ function LiveCurrencyConverterPage({
   const converted = rate ? numericAmount * rate : 0;
   const result = formatCurrencyAmount(converted, session.toCurrency);
   const cnyAmount = formatCurrencyAmount(numericAmount, 'CNY');
-  const rateStatusText = ratesResult?.source === 'fallback'
-    ? 'Indicative rate. Not real-time.'
-    : ratesResult?.updatedAt
-      ? `Last updated ${ratesResult.updatedAt}`
-      : 'Loading latest rate...';
+  const rateStatusText = ratesResult?.updatedAt
+    ? `Last updated ${ratesResult.updatedAt}`
+    : 'Loading latest rate...';
 
   function updateAmount(value: string) {
     onSessionChange((current) => ({ ...current, amount: value }));
@@ -4054,11 +4053,11 @@ function LiveCurrencyConverterPage({
       {error && !ratesResult ? <div className="error-panel menu-error-panel"><strong>Exchange rates unavailable</strong><p>{error}</p></div> : null}
       {canShowResult ? (
         <div className="menu-result-header shopping-rate-card">
-          <span className="badge">Indicative rate</span>
+          <span className="badge">Live rate</span>
           <p className="shopping-cny-amount">{cnyAmount}</p>
           <h2>{isLoading ? 'Loading...' : result}</h2>
           <p>{rateStatusText}</p>
-          <small>Exchange rates are for quick travel reference only. Not a guaranteed checkout price.</small>
+          <small>{ratesResult?.provider ? `Source: ${ratesResult.provider}. ` : ''}Exchange rates are for quick travel reference only. Not a guaranteed checkout price.</small>
         </div>
       ) : null}
     </section>
@@ -4082,32 +4081,6 @@ function formatCurrencyNumber(amount: number, maximumFractionDigits: number) {
     minimumFractionDigits: maximumFractionDigits,
     maximumFractionDigits,
   }).format(Number.isFinite(amount) ? amount : 0);
-}
-
-function CurrencyConverterPage({ onBack }: { onBack: () => void }) {
-  const [amount, setAmount] = useState('100');
-  const [direction, setDirection] = useState('cny-to-usd');
-  const rates: Record<string, { label: string; rate: number; prefix: string }> = {
-    'cny-to-usd': { label: 'CNY -> USD', rate: 0.14, prefix: '$' },
-    'usd-to-cny': { label: 'USD -> CNY', rate: 7.2, prefix: 'RMB ' },
-    'cny-to-eur': { label: 'CNY -> EUR', rate: 0.13, prefix: 'EUR ' },
-    'eur-to-cny': { label: 'EUR -> CNY', rate: 7.8, prefix: 'RMB ' },
-    'cny-to-gbp': { label: 'CNY -> GBP', rate: 0.11, prefix: 'GBP ' },
-    'gbp-to-cny': { label: 'GBP -> CNY', rate: 9.1, prefix: 'RMB ' },
-    'cny-to-jpy': { label: 'CNY -> JPY', rate: 22, prefix: 'JPY ' },
-    'jpy-to-cny': { label: 'JPY -> CNY', rate: 0.045, prefix: 'RMB ' },
-  };
-  const selected = rates[direction];
-  const result = (Number(amount || 0) * selected.rate).toFixed(2);
-  return (
-    <section className="screen">
-      <PageHeader title="Currency Converter" description="Prototype / Indicative rate" onBack={onBack} />
-      <WarningCard text="This prototype uses fixed mock rates. It is not real-time financial data." />
-      <label className="text-field"><span>Amount</span><input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} /></label>
-      <label className="text-field compact-field"><span>Currency</span><select value={direction} onChange={(event) => setDirection(event.target.value)}>{Object.entries(rates).map(([key, rate]) => <option key={key} value={key}>{rate.label}</option>)}</select></label>
-      <div className="result-card"><span>{selected.label}</span><strong>{selected.prefix}{result}</strong><p>Indicative only</p></div>
-    </section>
-  );
 }
 
 function EmergencyPage({
@@ -4564,7 +4537,7 @@ function AdminQuestionsPage({ onHome, onOpen, onLogin }: { onHome: () => void; o
             <span className="scenario-icon"><MessageCircle size={24} aria-hidden="true" /></span>
             <span>
               <strong>{item.status}{item.hasPhoto ? <em>Photo</em> : null}</strong>
-              <small>{item.question.slice(0, 96)}{item.question.length > 96 ? '...' : ''}<br />{item.location || 'No city'}<br />Reply email: {formatDeliveryStatus(item.emailStatus)}<br />Submitted {formatDateTime(item.createdAt)}</small>
+              <small>{item.question.slice(0, 96)}{item.question.length > 96 ? '...' : ''}<br />{item.location || 'No city'}<br />Reply email: {formatDeliveryStatus(item.emailStatus)}<br />Admin notice: {formatDeliveryStatus(item.adminNotificationStatus)}<br />Submitted {formatDateTime(item.createdAt)}</small>
             </span>
           </button>
         ))}
@@ -4582,6 +4555,7 @@ function AdminQuestionDetailPage({ id, onBack, onLogin }: { id: number; onBack: 
   const [isLoading, setIsLoading] = useState(true);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [isSendingAdminNotification, setIsSendingAdminNotification] = useState(false);
 
   React.useEffect(() => {
     async function loadQuestion() {
@@ -4658,6 +4632,30 @@ function AdminQuestionDetailPage({ id, onBack, onLogin }: { id: number; onBack: 
     }
   }
 
+  async function sendAdminNotification() {
+    setMessage('');
+    setError('');
+    setIsSendingAdminNotification(true);
+    try {
+      const response = await fetch(apiUrl(`/api/admin/questions/${id}/admin-notification`), {
+        method: 'POST',
+      });
+      if (response.status === 401) {
+        onLogin();
+        return;
+      }
+      const body = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(body?.error || 'Could not send admin notification.');
+      const update = unwrapAdminQuestionResponse(body as AdminQuestionUpdateResponse);
+      setQuestion(update.question);
+      setMessage(update.adminNotificationMessage || 'Admin notification sent.');
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Could not send admin notification.');
+    } finally {
+      setIsSendingAdminNotification(false);
+    }
+  }
+
   if (isLoading) return <section className="screen"><PageHeader title="Question" onBack={onBack} /><div className="menu-loading"><div className="spinner" /><p>Loading question...</p></div></section>;
   if (error && !question) return <section className="screen"><PageHeader title="Question" onBack={onBack} /><div className="error-panel"><strong>Could not open question</strong><p>{error}</p></div></section>;
   if (!question) return null;
@@ -4691,20 +4689,25 @@ function AdminQuestionDetailPage({ id, onBack, onLogin }: { id: number; onBack: 
         <button className="secondary-button" type="button" onClick={() => updateQuestion('draft')}>Save Draft</button>
         <button className="primary-button" type="button" disabled={!replyEnglish.trim() || isPublishing} onClick={() => updateQuestion('publish')}>{isPublishing ? 'Publishing...' : 'Publish Reply'}</button>
         {question.answerStatus === 'published' ? <button className="secondary-button" type="button" disabled={isSendingEmail} onClick={sendEmail}>{isSendingEmail ? 'Sending...' : shouldLabelRetry(question.emailStatus) ? 'Retry Email' : 'Resend Email'}</button> : null}
+        <button className="secondary-button" type="button" disabled={isSendingAdminNotification} onClick={sendAdminNotification}>{isSendingAdminNotification ? 'Sending notice...' : shouldLabelRetry(question.adminNotificationStatus) ? 'Retry Admin Notice' : 'Resend Admin Notice'}</button>
         <button className="secondary-button" type="button" onClick={() => updateQuestion('close')}>Mark as Closed</button>
       </div>
     </section>
   );
 }
 
-function unwrapAdminQuestionResponse(body: AdminQuestionUpdateResponse): { question: AdminQuestion; emailDeliveryMessage: string } {
+function unwrapAdminQuestionResponse(body: AdminQuestionUpdateResponse): { question: AdminQuestion; emailDeliveryMessage: string; adminNotificationMessage: string } {
   const possibleWrappedQuestion = (body as { question?: unknown }).question;
   if (typeof possibleWrappedQuestion === 'object' && possibleWrappedQuestion !== null) {
-    const wrapped = body as { question: AdminQuestion; emailDeliveryMessage?: string };
-    return { question: wrapped.question, emailDeliveryMessage: wrapped.emailDeliveryMessage ?? '' };
+    const wrapped = body as { question: AdminQuestion; emailDeliveryMessage?: string; adminNotificationMessage?: string };
+    return {
+      question: wrapped.question,
+      emailDeliveryMessage: wrapped.emailDeliveryMessage ?? '',
+      adminNotificationMessage: wrapped.adminNotificationMessage ?? '',
+    };
   }
 
-  return { question: body as AdminQuestion, emailDeliveryMessage: '' };
+  return { question: body as AdminQuestion, emailDeliveryMessage: '', adminNotificationMessage: '' };
 }
 
 function formatEmailDelivery(question: AdminQuestion) {

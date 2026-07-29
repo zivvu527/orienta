@@ -300,6 +300,34 @@ app.post('/api/admin/questions/:id/email', requireAdmin, async (request, respons
   }
 });
 
+app.post('/api/admin/questions/:id/admin-notification', requireAdmin, async (request, response) => {
+  try {
+    const question = getAdminQuestion(Number(request.params.id));
+    if (!question) {
+      response.status(404).json({ error: 'Question not found.' });
+      return;
+    }
+
+    const deliveredQuestion = await sendNewQuestionAdminNotification({
+      privateToken: question.privateToken,
+      question: question.question,
+      location: question.location,
+      context: question.context,
+      email: question.email,
+      createdAt: question.createdAt,
+      hasPhoto: question.hasPhoto,
+    });
+
+    response.json({
+      question: deliveredQuestion ?? getAdminQuestion(question.id) ?? question,
+      adminNotificationMessage: getAdminNotificationMessage(deliveredQuestion?.adminNotificationStatus),
+    });
+  } catch (error) {
+    console.error('[admin:question-admin-notification]', error);
+    response.status(500).json({ error: 'Admin notification could not be sent.' });
+  }
+});
+
 app.put('/api/admin/questions/:id/close', requireAdmin, (request, response) => {
   const question = closeQuestion(Number(request.params.id));
   if (!question) {
@@ -639,7 +667,7 @@ async function sendNewQuestionAdminNotification(question: {
         error: 'Admin notification email is not configured.',
         provider: 'resend',
       });
-      return;
+      return getAdminQuestionByToken(question.privateToken);
     }
 
     const appUrl = getPublicSiteUrl();
@@ -660,6 +688,7 @@ async function sendNewQuestionAdminNotification(question: {
       provider: result.provider,
       providerMessageId: result.providerMessageId,
     });
+    return getAdminQuestionByToken(question.privateToken);
   } catch (error) {
     console.error('[email:admin-notification]', error instanceof Error ? error.message : error);
     safeRecordAdminNotification(question.privateToken, {
@@ -667,6 +696,7 @@ async function sendNewQuestionAdminNotification(question: {
       error: 'Admin notification failed.',
       provider: 'resend',
     });
+    return getAdminQuestionByToken(question.privateToken);
   }
 }
 
@@ -686,6 +716,14 @@ function safeRecordAdminNotification(privateToken: string, delivery: {
 function getPublicSiteUrl() {
   const fallbackUrl = isProduction ? productionSiteUrl : 'http://127.0.0.1:5173';
   return fallbackUrl.replace(/\/$/, '');
+}
+
+function getAdminNotificationMessage(status?: string) {
+  if (status === 'sent') return 'New question notification sent.';
+  if (status === 'development_logged') return 'Development only - no admin notification email was sent.';
+  if (status === 'not_configured') return 'Admin notification email is not configured.';
+  if (status === 'pending') return 'Admin notification is pending.';
+  return 'Admin notification failed.';
 }
 
 export const server = app.listen(port, host, () => {
