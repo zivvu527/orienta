@@ -2,7 +2,24 @@ const DEFAULT_TIMEOUT_MS = 10_000;
 const SUPPORTED_CURRENCIES = ['CNY', 'USD', 'EUR', 'GBP', 'JPY', 'KRW'] as const;
 type SupportedCurrency = (typeof SUPPORTED_CURRENCIES)[number];
 
-let cachedRates: { base: SupportedCurrency; rates: Record<string, number>; updatedAt: string; fetchedAt: number } | null = null;
+type ExchangeRatesResult = {
+  base: SupportedCurrency;
+  rates: Record<string, number>;
+  updatedAt: string;
+  fetchedAt: number;
+  source: 'live' | 'fallback';
+};
+
+let cachedRates: ExchangeRatesResult | null = null;
+
+const CNY_REFERENCE_RATES: Record<SupportedCurrency, number> = {
+  CNY: 1,
+  USD: 0.14,
+  EUR: 0.12,
+  GBP: 0.11,
+  JPY: 21.6,
+  KRW: 193,
+};
 
 export async function getExchangeRates(base: string) {
   const normalizedBase = normalizeCurrency(base);
@@ -38,12 +55,35 @@ export async function getExchangeRates(base: string) {
       rates,
       updatedAt: body.date,
       fetchedAt: Date.now(),
+      source: 'live',
+    };
+
+    return cachedRates;
+  } catch (error) {
+    console.warn('[exchange-rates:fallback]', error);
+    cachedRates = {
+      base: normalizedBase,
+      rates: getFallbackRates(normalizedBase),
+      updatedAt: 'Indicative fallback',
+      fetchedAt: Date.now(),
+      source: 'fallback',
     };
 
     return cachedRates;
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function getFallbackRates(base: SupportedCurrency): Record<string, number> {
+  const baseInCny = 1 / CNY_REFERENCE_RATES[base];
+  const rates: Record<string, number> = {};
+
+  for (const currency of SUPPORTED_CURRENCIES) {
+    rates[currency] = baseInCny * CNY_REFERENCE_RATES[currency];
+  }
+
+  return rates;
 }
 
 function isExchangeRateProviderBody(value: unknown): value is { date: string; rates: Record<string, unknown> } {

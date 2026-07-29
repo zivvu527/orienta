@@ -375,6 +375,7 @@ type ExchangeRatesResult = {
   base: string;
   rates: Record<string, number>;
   updatedAt: string;
+  source?: 'live' | 'fallback';
 };
 
 type ShoppingPriceSession = {
@@ -2267,13 +2268,21 @@ function DishTags({ title, tags, warning }: { title: string; tags: string[]; war
 }
 
 function OrderDishCard({ result, onClose }: { result: DishExploreResult; onClose: () => void }) {
+  const [statusMessage, setStatusMessage] = useState('');
+  const chineseText = result.orderingPhraseChinese || `我要一份${result.chineseName}。`;
+
+  function playChineseAudio() {
+    speakChineseText(chineseText, setStatusMessage);
+  }
+
   return (
     <div className="order-dish-card">
-      <p className="order-chinese">{result.orderingPhraseChinese || `????${result.chineseName}?`}</p>
+      <p className="order-chinese">{chineseText}</p>
       {result.orderingPhrasePinyin ? <p className="order-pinyin">{result.orderingPhrasePinyin}</p> : null}
       <p className="order-english">{result.orderingPhraseEnglish || `I'd like one ${result.englishName}.`}</p>
-      <button className="secondary-button" type="button" disabled><Volume2 size={19} aria-hidden="true" />Play Audio <span className="button-badge">TODO</span></button>
+      <button className="secondary-button" type="button" onClick={playChineseAudio}><Volume2 size={19} aria-hidden="true" />Play Chinese Audio</button>
       <button className="secondary-button" type="button" onClick={onClose}>Done</button>
+      {statusMessage ? <p className="prototype-note">{statusMessage}</p> : null}
     </div>
   );
 }
@@ -3998,10 +4007,16 @@ function LiveCurrencyConverterPage({
   }, []);
 
   const rate = ratesResult?.rates[session.toCurrency] ?? 0;
+  const canShowResult = session.hasChecked && Boolean(rate);
   const numericAmount = Number(session.amount || 0);
   const converted = rate ? numericAmount * rate : 0;
   const result = formatCurrencyAmount(converted, session.toCurrency);
   const cnyAmount = formatCurrencyAmount(numericAmount, 'CNY');
+  const rateStatusText = ratesResult?.source === 'fallback'
+    ? 'Indicative rate. Not real-time.'
+    : ratesResult?.updatedAt
+      ? `Last updated ${ratesResult.updatedAt}`
+      : 'Loading latest rate...';
 
   function updateAmount(value: string) {
     onSessionChange((current) => ({ ...current, amount: value }));
@@ -4036,13 +4051,13 @@ function LiveCurrencyConverterPage({
         <button className="menu-understand-button shopping-price-check-button" type="button" onClick={checkPrice}>Check Price</button>
       </section>
 
-      {error ? <div className="error-panel menu-error-panel"><strong>Exchange rates unavailable</strong><p>{error}</p></div> : null}
-      {session.hasChecked ? (
+      {error && !ratesResult ? <div className="error-panel menu-error-panel"><strong>Exchange rates unavailable</strong><p>{error}</p></div> : null}
+      {canShowResult ? (
         <div className="menu-result-header shopping-rate-card">
           <span className="badge">Indicative rate</span>
           <p className="shopping-cny-amount">{cnyAmount}</p>
           <h2>{isLoading ? 'Loading...' : result}</h2>
-          <p>{ratesResult?.updatedAt ? `Last updated ${ratesResult.updatedAt}` : 'Loading latest rate...'}</p>
+          <p>{rateStatusText}</p>
           <small>Exchange rates are for quick travel reference only. Not a guaranteed checkout price.</small>
         </div>
       ) : null}
@@ -4051,10 +4066,21 @@ function LiveCurrencyConverterPage({
 }
 
 function formatCurrencyAmount(amount: number, currency: string) {
+  if (currency === 'CNY') {
+    return `¥${formatCurrencyNumber(amount, 2)}`;
+  }
+
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency,
     maximumFractionDigits: ['JPY', 'KRW'].includes(currency) ? 0 : 2,
+  }).format(Number.isFinite(amount) ? amount : 0);
+}
+
+function formatCurrencyNumber(amount: number, maximumFractionDigits: number) {
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: maximumFractionDigits,
+    maximumFractionDigits,
   }).format(Number.isFinite(amount) ? amount : 0);
 }
 
@@ -4793,16 +4819,7 @@ function ChineseDisplayCard({ context, onBack, onDone }: { context: DisplayConte
   const isQuickPhraseCard = context.returnPage === 'quick-phrases';
 
   function playChineseAudio() {
-    if (!('speechSynthesis' in window)) {
-      setStatusMessage('Audio is prototype only on this device.');
-      return;
-    }
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(context.phrase.chinese);
-    utterance.lang = 'zh-CN';
-    utterance.rate = 0.86;
-    window.speechSynthesis.speak(utterance);
-    setStatusMessage('');
+    speakChineseText(context.phrase.chinese, setStatusMessage);
   }
 
   async function copyChinese() {
@@ -4831,6 +4848,43 @@ function ChineseDisplayCard({ context, onBack, onDone }: { context: DisplayConte
       {statusMessage ? <p className="prototype-note">{statusMessage}</p> : null}
     </section>
   );
+}
+
+function speakChineseText(text: string, setStatusMessage: (message: string) => void) {
+  if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) {
+    setStatusMessage('Audio is not available in this browser.');
+    return;
+  }
+
+  const speak = () => {
+    const voices = window.speechSynthesis.getVoices();
+    const chineseVoice = voices.find((voice) => voice.lang.toLowerCase().startsWith('zh'))
+      || voices.find((voice) => voice.lang.toLowerCase().includes('cmn'));
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = chineseVoice?.lang || 'zh-CN';
+    utterance.rate = 0.86;
+    if (chineseVoice) utterance.voice = chineseVoice;
+    utterance.onstart = () => setStatusMessage('');
+    utterance.onerror = () => setStatusMessage('Audio could not play on this device.');
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const voices = window.speechSynthesis.getVoices();
+  if (voices.length) {
+    speak();
+    return;
+  }
+
+  setStatusMessage('Preparing audio...');
+  window.speechSynthesis.onvoiceschanged = () => {
+    window.speechSynthesis.onvoiceschanged = null;
+    speak();
+  };
+  window.setTimeout(() => {
+    if (window.speechSynthesis.speaking) return;
+    speak();
+  }, 350);
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

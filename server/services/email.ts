@@ -90,6 +90,32 @@ async function sendTransactionalEmail({
     return { ok: false, mode: 'not_configured', status: 'not_configured', provider: 'resend', error: 'EMAIL_FROM is not configured.' };
   }
 
+  if (!isValidEmailAddress(to)) {
+    return { ok: false, mode: 'resend', status: 'failed', provider: 'resend', error: 'Recipient email address is invalid.' };
+  }
+
+  if (!isValidFromAddress(from)) {
+    console.error('[email:not-configured] EMAIL_FROM is invalid. Use Name <email@example.com> or email@example.com.');
+    return {
+      ok: false,
+      mode: 'not_configured',
+      status: 'not_configured',
+      provider: 'resend',
+      error: 'EMAIL_FROM is invalid. Use Orienta <hello@mail.orienta.cn>.',
+    };
+  }
+
+  if (replyTo && !isValidEmailAddress(replyTo)) {
+    console.error('[email:not-configured] EMAIL_REPLY_TO is invalid.');
+    return {
+      ok: false,
+      mode: 'not_configured',
+      status: 'not_configured',
+      provider: 'resend',
+      error: 'EMAIL_REPLY_TO is invalid.',
+    };
+  }
+
   const payload: Record<string, unknown> = {
     from,
     to: [to],
@@ -223,4 +249,16 @@ function maskEmail(email: string) {
   const [name, domain] = email.split('@');
   if (!name || !domain) return 'hidden';
   return `${name.slice(0, 2)}***@${domain}`;
+}
+
+function isValidFromAddress(value: string) {
+  const trimmed = value.trim();
+  const match = trimmed.match(/^(.+?)\s*<([^<>@\s]+@[^<>@\s]+\.[^<>@\s]+)>$/);
+  if (match) return Boolean(match[1].trim()) && isValidEmailAddress(match[2]);
+
+  return isValidEmailAddress(trimmed);
+}
+
+function isValidEmailAddress(value: string) {
+  return /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(value.trim());
 }
