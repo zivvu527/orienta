@@ -5,8 +5,8 @@
     "dev:all": "concurrently \"pnpm dev:api\" \"pnpm dev\"",
     "admin:hash": "tsx server/createAdminPasswordHash.ts",
     "typecheck": "tsc && tsc -p tsconfig.server.json",
-    "build": "pnpm typecheck && vite build",
-    "start": "tsx server/index.ts",
+    "build": "pnpm typecheck && tsc -p tsconfig.server.build.json && vite build",
+    "start": "node server-dist/index.js",
     "cap:sync": "pnpm build && cap sync",
     "cap:ios": "cap open ios",
     "preview": "vite preview --host 127.0.0.1"
