@@ -3,6 +3,7 @@ import express from 'express';
 import multer from 'multer';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { getAiApiKey, getAiBaseUrl } from './aiConfig';
 import { getExchangeRates } from './exchangeRates';
 import { exploreDish } from './exploreDish';
 import { formatDestinationAddress } from './formatDestination';
@@ -128,6 +129,30 @@ app.get('/api/health', (_request, response) => {
 
 app.get('/healthz', (_request, response) => {
   response.json({ ok: true });
+});
+
+app.post('/api/tts/chinese', async (request, response) => {
+  try {
+    const text = typeof request.body?.text === 'string' ? request.body.text.trim() : '';
+    if (!text) {
+      response.status(400).json({ error: 'Chinese text is required.' });
+      return;
+    }
+
+    if (text.length > 300) {
+      response.status(400).json({ error: 'Text is too long for audio.' });
+      return;
+    }
+
+    const audio = await createChineseSpeech(text);
+    response.setHeader('Content-Type', 'audio/mpeg');
+    response.setHeader('Cache-Control', 'private, max-age=86400');
+    response.send(audio);
+  } catch (error) {
+    console.error('[tts:chinese]', error instanceof Error ? error.message : error);
+    response.status(isAiConfigurationError(error instanceof Error ? error.message : '') ? 503 : 502)
+      .json({ error: 'Audio is temporarily unavailable.' });
+  }
 });
 
 app.post('/api/local-questions', questionSubmissionRateLimit, upload.single('photo'), async (request, response) => {
@@ -626,7 +651,49 @@ function isAiConfigurationError(message: string) {
     'OPENAI_MENU_MODEL',
     'OPENAI_TEXT_MODEL',
     'OPENAI_VISION_MODEL',
+    'OPENAI_TTS_MODEL',
   ].some((name) => message.includes(name));
+}
+
+async function createChineseSpeech(text: string) {
+  const apiKey = getAiApiKey();
+  const baseUrl = (getAiBaseUrl() || 'https://api.openai.com/v1').replace(/\/$/, '');
+  const model = process.env.OPENAI_TTS_MODEL || 'gpt-4o-mini-tts';
+  const voice = process.env.OPENAI_TTS_VOICE || 'alloy';
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), Number(process.env.OPENAI_TTS_TIMEOUT_MS ?? 20_000));
+
+  try {
+    const speechResponse = await fetch(`${baseUrl}/audio/speech`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        voice,
+        input: text,
+        response_format: 'mp3',
+      }),
+      signal: controller.signal,
+    });
+
+    if (!speechResponse.ok) {
+      const body = await speechResponse.text().catch(() => '');
+      throw new Error(`TTS provider returned ${speechResponse.status}: ${body.slice(0, 180)}`);
+    }
+
+    return Buffer.from(await speechResponse.arrayBuffer());
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error('TTS request timed out.');
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function queueNewQuestionAdminNotification(question: {
@@ -660,7 +727,7 @@ async function sendNewQuestionAdminNotification(question: {
   hasPhoto: boolean;
 }) {
   try {
-    const adminNotificationEmail = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL;
+    const adminNotificationEmail = getAdminNotificationEmail();
     if (!adminNotificationEmail) {
       safeRecordAdminNotification(question.privateToken, {
         status: 'not_configured',
@@ -700,6 +767,14 @@ async function sendNewQuestionAdminNotification(question: {
   }
 }
 
+function getAdminNotificationEmail() {
+  return [
+    process.env.ADMIN_NOTIFICATION_EMAIL,
+    process.env.ADMIN_EMAIL,
+    process.env.EMAIL_REPLY_TO,
+  ].map((value) => value?.trim()).find(Boolean) || '';
+}
+
 function safeRecordAdminNotification(privateToken: string, delivery: {
   status: 'pending' | 'sent' | 'failed' | 'development_logged' | 'not_configured';
   error?: string;
@@ -728,6 +803,10 @@ function getAdminNotificationMessage(status?: string) {
 
 export const server = app.listen(port, host, () => {
   console.log(`Orienta server running at http://${host}:${port}`);
+  console.log('[config] Public site URL:', getPublicSiteUrl());
+  console.log('[config] Admin notification email configured:', Boolean(getAdminNotificationEmail()));
+  console.log('[config] Resend configured:', Boolean(process.env.RESEND_API_KEY));
+  console.log('[config] OpenAI-compatible base URL configured:', Boolean(getAiBaseUrl()));
 });
 
 process.on('beforeExit', (code) => {

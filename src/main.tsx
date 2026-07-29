@@ -4853,7 +4853,42 @@ function ChineseDisplayCard({ context, onBack, onDone }: { context: DisplayConte
   );
 }
 
-function speakChineseText(text: string, setStatusMessage: (message: string) => void) {
+async function speakChineseText(text: string, setStatusMessage: (message: string) => void) {
+  setStatusMessage('Preparing audio...');
+  try {
+    const response = await fetch(apiUrl('/api/tts/chinese'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+
+    if (response.ok) {
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      audio.onended = () => {
+        URL.revokeObjectURL(audioUrl);
+        setStatusMessage('');
+      };
+      audio.onerror = () => {
+        URL.revokeObjectURL(audioUrl);
+        speakChineseTextInBrowser(text, setStatusMessage);
+      };
+      try {
+        await audio.play();
+        return;
+      } catch {
+        URL.revokeObjectURL(audioUrl);
+      }
+    }
+  } catch {
+    // Fall back to browser speech below.
+  }
+
+  speakChineseTextInBrowser(text, setStatusMessage);
+}
+
+function speakChineseTextInBrowser(text: string, setStatusMessage: (message: string) => void) {
   if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) {
     setStatusMessage('Audio is not available in this browser.');
     return;
