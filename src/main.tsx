@@ -151,6 +151,7 @@ type TranslatedMenuSection = {
 type TranslatedMenuResult = {
   restaurant_name: string;
   recognition_status: 'recognized' | 'uncertain' | 'unable_to_recognize';
+  partial_menu_notice?: string;
   sections: TranslatedMenuSection[];
 };
 
@@ -1517,7 +1518,7 @@ function TranslateMenuPage({
     setError('');
 
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 170_000);
+    const timeout = window.setTimeout(() => controller.abort(), 245_000);
 
     try {
       const formData = new FormData();
@@ -1674,6 +1675,7 @@ function MenuTranslationResult({ result, selectedDishId, onDishSelect }: { resul
         <h2>{result.restaurant_name || 'Menu'}</h2>
         <p>Pick a dish to learn more before you order.</p>
       </div>
+      {result.partial_menu_notice ? <WarningCard text={result.partial_menu_notice} /> : null}
       {result.sections.length === 0 ? <p className="plain-copy">No clear menu items were found. Try another photo.</p> : null}
       {result.sections.map((section) => (
         <section className="menu-section" key={section.id}>

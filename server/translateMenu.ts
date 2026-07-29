@@ -7,10 +7,13 @@ const menuInstructions = [
   'Read the menu image and return only the requested JSON structure.',
   'The menu may be a standard printed menu, a wall poster, a photo-heavy menu board, a collage layout, or a non-standard restaurant flyer.',
   'Do not give up just because the layout is decorative, scattered, photo-heavy, or not arranged as a table.',
-  'Extract every visible dish name and price you can read. Partial useful extraction is better than failure.',
+  'For dense or large menus, prioritize the clearest readable dishes first instead of trying to transcribe everything.',
+  'Return a useful partial menu when only part of the image is readable. Partial useful extraction is better than failure.',
+  'Aim for roughly 8 to 15 clear dish items when the menu is crowded, but include more only if they are clearly readable and do not require guessing.',
   'Do not invent dish names, prices, restaurant names, ingredients, allergens, or spiciness.',
   'Only set recognition_status to "unable_to_recognize" when no menu dish text can be read at all.',
   'If some items are readable but uncertain, set recognition_status to "uncertain" and include the readable items. Keep uncertain fields empty or explain uncertainty in notes.',
+  'Set partial_menu_notice to a short traveler-friendly English note only when the result may cover part of the menu, for example: "This looks like a large menu, so I picked the clearest dishes first. For more items, take a closer photo of one section." Otherwise use an empty string.',
   'Use stable unique ids for every section and item.',
   'Descriptions should be short, practical English explanations for travelers.',
   'Notes may mention possible spiciness, pork, nuts, seafood, or other concerns only when visible or reasonably indicated by the menu text. Mark uncertainty clearly.',
@@ -129,7 +132,7 @@ async function translateWithChatCompletionsRaw(
       content: [
         {
           type: 'text',
-          text: `${instructions} Return JSON only. The JSON must match this shape: {"restaurant_name":"string","recognition_status":"recognized|uncertain|unable_to_recognize","sections":[{"id":"string","title":"string","items":[{"id":"string","original_name":"string","translated_name":"string","description":"string","price":"string","notes":"string"}]}]}`,
+          text: `${instructions} Return JSON only. The JSON must match this shape: {"restaurant_name":"string","recognition_status":"recognized|uncertain|unable_to_recognize","partial_menu_notice":"string","sections":[{"id":"string","title":"string","items":[{"id":"string","original_name":"string","translated_name":"string","description":"string","price":"string","notes":"string"}]}]}`,
         },
         {
           type: 'image_url',
@@ -276,6 +279,12 @@ function normalizeMenuResult(value: unknown) {
       ?? result.restaurant
       ?? result.name,
   );
+  result.partial_menu_notice = toStringValue(
+    result.partial_menu_notice
+      ?? result.partialMenuNotice
+      ?? result.partial_notice
+      ?? result.notice,
+  );
 
   const rawStatus = toStringValue(
     result.recognition_status
@@ -337,6 +346,11 @@ function normalizeMenuResult(value: unknown) {
 
   if (normalizedSections.some((section) => section.items.length > 0) && !rawStatus) {
     result.recognition_status = 'recognized';
+  }
+
+  const itemCount = normalizedSections.reduce((total, section) => total + section.items.length, 0);
+  if (!result.partial_menu_notice && itemCount >= 12 && result.recognition_status === 'uncertain') {
+    result.partial_menu_notice = 'This looks like a large menu, so I picked the clearest dishes first. For more items, take a closer photo of one section.';
   }
 
   return result;

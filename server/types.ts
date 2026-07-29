@@ -18,6 +18,7 @@ export const MenuSectionSchema = z.object({
 export const TranslateMenuResultSchema = z.object({
   restaurant_name: z.string().default(''),
   recognition_status: z.enum(['recognized', 'uncertain', 'unable_to_recognize']),
+  partial_menu_notice: z.string().default(''),
   sections: z.array(MenuSectionSchema),
 });
 
@@ -172,13 +173,14 @@ export type RailTicketResult = z.infer<typeof RailTicketResultSchema>;
 export const translateMenuJsonSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['restaurant_name', 'recognition_status', 'sections'],
+  required: ['restaurant_name', 'recognition_status', 'partial_menu_notice', 'sections'],
   properties: {
     restaurant_name: { type: 'string' },
     recognition_status: {
       type: 'string',
       enum: ['recognized', 'uncertain', 'unable_to_recognize'],
     },
+    partial_menu_notice: { type: 'string' },
     sections: {
       type: 'array',
       items: {
