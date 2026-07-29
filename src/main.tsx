@@ -1719,7 +1719,7 @@ function MenuItemCard({ item, selected, onSelect }: { item: TranslatedMenuItem; 
           <strong>{item.translated_name || item.original_name || 'Unclear item'}</strong>
           {item.original_name ? <span>{item.original_name}</span> : null}
         </div>
-        {item.price ? <p className="menu-price">{item.price}</p> : null}
+        {item.price ? <p className="menu-price">{formatMenuPriceForTraveler(item.price)}</p> : null}
       </div>
       {item.description ? <p>{shortenMenuDescription(item.description)}</p> : null}
     </button>
@@ -1730,6 +1730,57 @@ function shortenMenuDescription(description: string) {
   const cleanDescription = description.trim();
   if (cleanDescription.length <= 96) return cleanDescription;
   return `${cleanDescription.slice(0, 92).trim()}...`;
+}
+
+function formatMenuPriceForTraveler(price: string) {
+  if (!price) return '';
+
+  const unitMap: Record<string, string> = {
+    份: 'portion',
+    例: 'portion',
+    打: 'dozen',
+    串: 'skewer',
+    手: 'set',
+    个: 'piece',
+    只: 'piece',
+    条: 'fish',
+    位: 'person',
+    人: 'person',
+    斤: 'jin (500g)',
+    两: 'liang (50g)',
+    盒: 'box',
+    瓶: 'bottle',
+    杯: 'cup',
+    碗: 'bowl',
+    盘: 'plate',
+    小份: 'small portion',
+    中份: 'medium portion',
+    大份: 'large portion',
+    小煲: 'small pot',
+    中煲: 'medium pot',
+    大煲: 'large pot',
+  };
+
+  let normalized = price
+    .replace(/[￥¥]/g, '¥')
+    .replace(/\b(?:RMB|CNY|yuan)\b/gi, '¥')
+    .replace(/人民币/g, '¥')
+    .replace(/元/g, '¥')
+    .replace(/[：]/g, ':')
+    .replace(/[；]/g, ';')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  normalized = normalized.replace(/¥\s*([0-9]+(?:\.[0-9]+)?)/g, '¥$1');
+  normalized = normalized.replace(/([0-9]+(?:\.[0-9]+)?)\s*¥/g, '¥$1');
+
+  const unitsByLength = Object.keys(unitMap).sort((a, b) => b.length - a.length);
+  normalized = normalized.replace(new RegExp(`/\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(${unitsByLength.join('|')})`, 'g'), (_match, amount: string, unit: string) => ` / ${amount} ${unitMap[unit]}`);
+  for (const unit of unitsByLength) {
+    normalized = normalized.replace(new RegExp(`/\\s*${unit}`, 'g'), ` / ${unitMap[unit]}`);
+  }
+
+  return normalized.replace(/\s*;\s*/g, '; ').replace(/\s*,\s*/g, ', ');
 }
 
 function MenuDishDetailPage({ item, exploreResult, onBack }: { item: TranslatedMenuItem | null; exploreResult?: DishExploreResult | null; onBack: () => void }) {
@@ -1757,7 +1808,7 @@ function MenuDishDetailPage({ item, exploreResult, onBack }: { item: TranslatedM
       </header>
 
       <article className="menu-dish-detail-card menu-dish-intro-card">
-        {item?.price ? <p className="menu-dish-detail-price">{item.price}</p> : null}
+        {item?.price ? <p className="menu-dish-detail-price">{formatMenuPriceForTraveler(item.price)}</p> : null}
         {dishDescription ? <p>{dishDescription}</p> : <p>Ask the restaurant staff to confirm what this dish is.</p>}
       </article>
 

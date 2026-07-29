@@ -16,6 +16,8 @@ const menuInstructions = [
   'Set partial_menu_notice to a short traveler-friendly English note only when the result may cover part of the menu, for example: "This looks like a large menu, so I picked the clearest dishes first. For more items, take a closer photo of one section." Otherwise use an empty string.',
   'Use stable unique ids for every section and item.',
   'Descriptions should be short, practical English explanations for travelers.',
+  'Normalize prices for travelers: always use ¥ instead of 元, RMB, or yuan, and translate common Chinese price units into concise English such as ¥98 / portion, ¥78 / dozen, ¥22 / 5 fish, ¥42 / medium pot, or ¥62 / large pot.',
+  'If a price unit is unclear, keep the price with ¥ and omit the uncertain unit rather than guessing.',
   'Notes may mention possible spiciness, pork, nuts, seafood, or other concerns only when visible or reasonably indicated by the menu text. Mark uncertainty clearly.',
 ].join(' ');
 
@@ -381,9 +383,60 @@ function normalizeMenuItem(value: unknown, index: number) {
     original_name: toStringValue(item.original_name ?? item.originalName ?? item.chinese_name ?? item.chineseName ?? item.name_cn ?? item.name),
     translated_name: toStringValue(item.translated_name ?? item.translatedName ?? item.english_name ?? item.englishName ?? item.name_en ?? item.translation),
     description: toStringValue(item.description ?? item.what_it_is ?? item.whatItIs),
-    price: toStringValue(item.price),
+    price: formatMenuPriceForTraveler(toStringValue(item.price)),
     notes: toStringValue(item.notes ?? item.note ?? item.warning ?? item.warnings),
   };
+}
+
+function formatMenuPriceForTraveler(price: string): string {
+  if (!price) return '';
+
+  const unitMap: Record<string, string> = {
+    份: 'portion',
+    例: 'portion',
+    打: 'dozen',
+    串: 'skewer',
+    手: 'set',
+    个: 'piece',
+    只: 'piece',
+    条: 'fish',
+    位: 'person',
+    人: 'person',
+    斤: 'jin (500g)',
+    两: 'liang (50g)',
+    盒: 'box',
+    瓶: 'bottle',
+    杯: 'cup',
+    碗: 'bowl',
+    盘: 'plate',
+    小份: 'small portion',
+    中份: 'medium portion',
+    大份: 'large portion',
+    小煲: 'small pot',
+    中煲: 'medium pot',
+    大煲: 'large pot',
+  };
+
+  let normalized = price
+    .replace(/[￥¥]/g, '¥')
+    .replace(/\b(?:RMB|CNY|yuan)\b/gi, '¥')
+    .replace(/人民币/g, '¥')
+    .replace(/元/g, '¥')
+    .replace(/[：]/g, ':')
+    .replace(/[；]/g, ';')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  normalized = normalized.replace(/¥\s*([0-9]+(?:\.[0-9]+)?)/g, '¥$1');
+  normalized = normalized.replace(/([0-9]+(?:\.[0-9]+)?)\s*¥/g, '¥$1');
+
+  const unitsByLength = Object.keys(unitMap).sort((a, b) => b.length - a.length);
+  normalized = normalized.replace(new RegExp(`/\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(${unitsByLength.join('|')})`, 'g'), (_match, amount: string, unit: string) => ` / ${amount} ${unitMap[unit]}`);
+  for (const unit of unitsByLength) {
+    normalized = normalized.replace(new RegExp(`/\\s*${unit}`, 'g'), ` / ${unitMap[unit]}`);
+  }
+
+  return normalized.replace(/\s*;\s*/g, '; ').replace(/\s*,\s*/g, ', ');
 }
 
 function hasMenuItemName(item: { original_name: string; translated_name: string }) {

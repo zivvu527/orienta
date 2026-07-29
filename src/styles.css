@@ -1370,7 +1370,7 @@ h1 {
 
 .understand-menu-screen .menu-item-card .menu-price {
   min-width: 54px;
-  max-width: 92px;
+  max-width: 142px;
   border: 1.5px solid rgba(31, 32, 28, 0.22);
   border-radius: 14px;
   padding: 6px 9px;
@@ -1378,9 +1378,9 @@ h1 {
   background: #ead070;
   font-size: 15px;
   font-weight: 900;
-  line-height: 1;
+  line-height: 1.12;
   text-align: center;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .menu-dish-detail-screen {
@@ -1425,6 +1425,7 @@ h1 {
 
 .menu-dish-detail-price {
   width: fit-content;
+  max-width: 100%;
   border: 1.5px solid rgba(31, 32, 28, 0.22);
   border-radius: 14px;
   padding: 7px 10px;
@@ -1432,7 +1433,8 @@ h1 {
   background: #ead070;
   font-size: 17px !important;
   font-weight: 900 !important;
-  line-height: 1 !important;
+  line-height: 1.15 !important;
+  overflow-wrap: anywhere;
 }
 
 .menu-order-card {
