@@ -39,7 +39,14 @@ const port = Number(process.env.PORT ?? process.env.API_PORT ?? 8787);
 const host = isProduction ? '0.0.0.0' : '127.0.0.1';
 const distDir = path.resolve(process.cwd(), 'dist');
 const indexHtmlPath = path.join(distDir, 'index.html');
-const productionSiteUrl = 'https://orienta.cn';
+const defaultProductionSiteUrl = 'https://www.orienta.cn';
+const productionSiteUrl = (process.env.PUBLIC_SITE_URL || process.env.PUBLIC_APP_URL || defaultProductionSiteUrl).replace(/\/$/, '');
+const productionRedirectHosts = new Set(
+  (process.env.REDIRECT_TO_CANONICAL_HOSTS ?? '')
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean),
+);
 const maxMenuImageMb = Number(process.env.MAX_MENU_IMAGE_MB ?? 8);
 const maxMenuImageBytes = maxMenuImageMb * 1024 * 1024;
 const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -50,8 +57,9 @@ const corsAllowedOrigins = new Set([
   'http://localhost',
   'http://localhost:5173',
   'http://127.0.0.1:5173',
-  productionSiteUrl,
+  'https://orienta.cn',
   'https://www.orienta.cn',
+  productionSiteUrl,
   process.env.PUBLIC_SITE_URL,
   process.env.PUBLIC_APP_URL,
   ...(process.env.CORS_ALLOWED_ORIGINS ?? '').split(','),
@@ -71,7 +79,7 @@ app.use((request, response, next) => {
     const rawHost = Array.isArray(forwardedHost) ? forwardedHost[0] : forwardedHost || request.headers.host || '';
     const hostname = rawHost.split(':')[0].toLowerCase();
 
-    if (hostname === 'www.orienta.cn') {
+    if (productionRedirectHosts.has(hostname)) {
       response.redirect(301, `${productionSiteUrl}${request.originalUrl}`);
       return;
     }
@@ -673,7 +681,7 @@ function safeRecordAdminNotification(privateToken: string, delivery: {
 
 function getPublicSiteUrl() {
   const fallbackUrl = isProduction ? productionSiteUrl : 'http://127.0.0.1:5173';
-  return (process.env.PUBLIC_SITE_URL || process.env.PUBLIC_APP_URL || fallbackUrl).replace(/\/$/, '');
+  return fallbackUrl.replace(/\/$/, '');
 }
 
 export const server = app.listen(port, host, () => {

@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://orienta.cn/sitemap.xml
+Sitemap: https://www.orienta.cn/sitemap.xml
