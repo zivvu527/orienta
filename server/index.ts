@@ -126,6 +126,10 @@ app.get('/api/health', (_request, response) => {
   response.json({ ok: true });
 });
 
+app.get('/healthz', (_request, response) => {
+  response.json({ ok: true });
+});
+
 app.post('/api/local-questions', questionSubmissionRateLimit, upload.single('photo'), async (request, response) => {
   try {
     const result = await createLocalQuestion(request.body, request.file);
@@ -687,3 +691,25 @@ function getPublicSiteUrl() {
 export const server = app.listen(port, host, () => {
   console.log(`Orienta server running at http://${host}:${port}`);
 });
+
+process.on('beforeExit', (code) => {
+  console.error(`[process:before-exit] code=${code}`);
+});
+
+process.on('exit', (code) => {
+  console.error(`[process:exit] code=${code}`);
+});
+
+function shutdown(signal: string) {
+  console.error(`[process:${signal}] shutting down`);
+  server.close(() => {
+    process.exit(0);
+  });
+
+  setTimeout(() => {
+    process.exit(0);
+  }, 5000).unref();
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
