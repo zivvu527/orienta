@@ -1610,6 +1610,7 @@ function TranslateMenuPage({
           </label>
         </div>
       ) : null}
+      <p className="menu-photo-tip">For the best results, take a close photo of one menu section at a time.</p>
 
       {selectedFile ? (
         <button className="menu-understand-button" type="button" disabled={isLoading} onClick={translateMenu}>
@@ -1654,6 +1655,17 @@ function MenuLoadingProgress({ label, message, progress }: { label: string; mess
         <span style={{ width: `${progress}%` }} />
       </div>
       <em>Large menus can take a little longer. Please keep this page open.</em>
+    </div>
+  );
+}
+
+function RailTicketProgress() {
+  return (
+    <div className="rail-ticket-progress" role="status" aria-live="polite">
+      <div className="menu-progress-track" aria-hidden="true">
+        <span />
+      </div>
+      <small>Reading the key trip details...</small>
     </div>
   );
 }
@@ -3037,7 +3049,7 @@ function RailTicketAiPage({
             </button>
           ) : null}
 
-          {isLoading ? <div className="menu-calm-loading"><p>Understanding your trip...</p></div> : null}
+          {isLoading ? <RailTicketProgress /> : null}
           {session.error ? <div className="error-panel menu-error-panel"><strong>We couldn't read this ticket clearly.</strong><p>{session.error}</p></div> : null}
         </>
       ) : (

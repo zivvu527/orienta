@@ -1179,6 +1179,52 @@ h1 {
   min-height: 58px;
 }
 
+.menu-photo-tip {
+  margin: -2px 4px 2px;
+  color: rgba(31, 32, 28, 0.62);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.rail-ticket-progress {
+  display: grid;
+  gap: 9px;
+  justify-items: center;
+  border: 1.5px solid #1f201c;
+  border-radius: 22px;
+  padding: 15px 18px;
+  background: rgba(255, 253, 247, 0.78);
+  box-shadow: 0 4px 0 rgba(31, 32, 28, 0.08);
+}
+
+.rail-ticket-progress .menu-progress-track {
+  width: min(100%, 280px);
+}
+
+.rail-ticket-progress .menu-progress-track span {
+  width: 62%;
+  animation: rail-ticket-progress 1.4s ease-in-out infinite alternate;
+}
+
+.rail-ticket-progress small {
+  color: rgba(31, 32, 28, 0.62);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+}
+
+@keyframes rail-ticket-progress {
+  from {
+    width: 34%;
+  }
+
+  to {
+    width: 86%;
+  }
+}
+
 .menu-error-panel {
   border-width: 1.5px;
   border-radius: 22px;
