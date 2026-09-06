@@ -10,6 +10,7 @@ import { formatDestinationAddress } from './formatDestination';
 import {
   clearAdminCookie,
   clearAdminSession,
+  cleanupExpiredQuestions,
   closeQuestion,
   createLocalQuestion,
   findQuestionPhotoById,
@@ -21,6 +22,7 @@ import {
   listAdminQuestions,
   loginAdmin,
   markEmailPending,
+  permanentlyDeleteQuestion,
   publishAnswer,
   questionSubmissionRateLimit,
   recordAdminNotification,
@@ -94,7 +96,7 @@ app.use((request, response, next) => {
     response.setHeader('Vary', 'Origin');
   }
 
-  response.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,OPTIONS');
+  response.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
   response.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
 
   if (request.method === 'OPTIONS') {
@@ -363,6 +365,32 @@ app.put('/api/admin/questions/:id/close', requireAdmin, (request, response) => {
   response.json(question);
 });
 
+app.delete('/api/admin/questions/:id', requireAdmin, (request, response) => {
+  const id = Number(request.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    response.status(400).json({ error: 'Invalid question ID.' });
+    return;
+  }
+  if (replyEmailSendLocks.has(id)) {
+    response.status(409).json({ error: 'Email delivery is in progress. Try deleting again shortly.' });
+    return;
+  }
+
+  try {
+    if (!permanentlyDeleteQuestion(id)) {
+      response.status(404).json({ error: 'Question not found.' });
+      return;
+    }
+    response.status(204).end();
+  } catch (error) {
+    console.error('[admin:question-delete]', {
+      id,
+      error: error instanceof Error ? error.message : 'Unknown deletion error.',
+    });
+    response.status(500).json({ error: 'Question could not be permanently deleted.' });
+  }
+});
+
 app.post('/api/translate-menu', upload.single('menu_image'), async (request, response) => {
   try {
     if (!request.file) {
@@ -539,7 +567,7 @@ app.get('/api/exchange-rates', async (request, response) => {
     response.json(result);
   } catch (error) {
     console.error('[exchange-rates]', error);
-    response.status(500).json({
+    response.status(503).json({
       error: 'We could not load exchange rates. Please try again.',
     });
   }
@@ -800,6 +828,27 @@ function getAdminNotificationMessage(status?: string) {
   if (status === 'pending') return 'Admin notification is pending.';
   return 'Admin notification failed.';
 }
+
+function runRetentionCleanup() {
+  try {
+    const result = cleanupExpiredQuestions();
+    if (result.deleted || result.failedIds.length) {
+      console.log('[ask-local:retention-cleanup]', {
+        deleted: result.deleted,
+        failedIds: result.failedIds,
+        retentionDays: result.retentionDays,
+      });
+    }
+  } catch (error) {
+    console.error('[ask-local:retention-cleanup]', {
+      error: error instanceof Error ? error.message : 'Unknown cleanup error.',
+    });
+  }
+}
+
+runRetentionCleanup();
+const retentionCleanupInterval = setInterval(runRetentionCleanup, 24 * 60 * 60 * 1000);
+retentionCleanupInterval.unref();
 
 export const server = app.listen(port, host, () => {
   console.log(`Orienta server running at http://${host}:${port}`);

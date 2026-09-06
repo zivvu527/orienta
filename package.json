@@ -1,10 +1,12 @@
 {
+  "version": "1.0.0",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "dev:api": "tsx server/index.ts",
     "dev:all": "concurrently \"pnpm dev:api\" \"pnpm dev\"",
     "admin:hash": "tsx server/createAdminPasswordHash.ts",
     "typecheck": "tsc && tsc -p tsconfig.server.json",
+    "test:exchange-rates": "tsx --test tests/exchangeRates.test.ts",
     "build": "pnpm typecheck && tsc -p tsconfig.server.build.json && vite build",
     "start": "node server-dist/index.js",
     "cap:sync": "pnpm build && cap sync",

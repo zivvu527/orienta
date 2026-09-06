@@ -1,5 +1,5 @@
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, renameSync, unlinkSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -13,6 +13,7 @@ const dbPath = path.resolve(process.env.QUESTION_DB_PATH ?? path.join(dataDir, '
 const dbDir = path.dirname(dbPath);
 const sessions = new Map<string, { expiresAt: number }>();
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
+const questionRetentionDays = 90;
 
 const QuestionInputSchema = z.object({
   question: z.string().trim().min(1).max(1500),
@@ -52,6 +53,7 @@ CREATE TABLE IF NOT EXISTS questions (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   answered_at TEXT NOT NULL DEFAULT '',
+  terminal_at TEXT NOT NULL DEFAULT '',
   responder_id TEXT NOT NULL DEFAULT '',
   email_status TEXT NOT NULL DEFAULT 'pending',
   email_sent_at TEXT NOT NULL DEFAULT '',
@@ -88,6 +90,7 @@ export type QuestionRow = {
   created_at: string;
   updated_at: string;
   answered_at: string;
+  terminal_at: string;
   responder_id: string;
   email_status: EmailDeliveryStatus;
   email_sent_at: string;
@@ -179,9 +182,10 @@ export function publishAnswer(id: number, input: unknown) {
   db.prepare(`
     UPDATE questions
     SET reply_english = ?, useful_chinese = ?, answer_status = 'published',
-        status = 'answered', updated_at = ?, answered_at = ?
+        status = 'answered', updated_at = ?, answered_at = ?,
+        terminal_at = CASE WHEN terminal_at = '' THEN ? ELSE terminal_at END
     WHERE id = ?
-  `).run(parsed.replyEnglish, parsed.usefulChinese, now, now, id);
+  `).run(parsed.replyEnglish, parsed.usefulChinese, now, now, now, id);
 
   return {
     question: getAdminQuestion(id),
@@ -255,8 +259,78 @@ export function markEmailPending(id: number) {
 
 export function closeQuestion(id: number) {
   const now = new Date().toISOString();
-  db.prepare("UPDATE questions SET status = 'closed', updated_at = ? WHERE id = ?").run(now, id);
+  db.prepare("UPDATE questions SET status = 'closed', updated_at = ?, terminal_at = CASE WHEN terminal_at = '' THEN ? ELSE terminal_at END WHERE id = ?").run(now, now, id);
   return getAdminQuestion(id);
+}
+
+export function permanentlyDeleteQuestion(id: number) {
+  const row = db.prepare('SELECT id, photo_path FROM questions WHERE id = ?').get(id) as Pick<QuestionRow, 'id' | 'photo_path'> | undefined;
+  if (!row) return false;
+
+  const photoPath = row.photo_path ? getSafePhotoPath(row.photo_path) : null;
+  if (row.photo_path && !photoPath) {
+    throw new Error('Question photo path is unsafe.');
+  }
+
+  const quarantinePath = photoPath
+    ? path.join(uploadDir, `.deleting-${row.id}-${randomBytes(8).toString('hex')}`)
+    : null;
+  let photoMoved = false;
+
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    if (photoPath && quarantinePath && existsSync(photoPath)) {
+      renameSync(photoPath, quarantinePath);
+      photoMoved = true;
+    }
+
+    db.prepare('DELETE FROM questions WHERE id = ?').run(id);
+
+    if (photoMoved && quarantinePath) {
+      unlinkSync(quarantinePath);
+      photoMoved = false;
+    }
+
+    db.exec('COMMIT');
+    return true;
+  } catch (error) {
+    try {
+      db.exec('ROLLBACK');
+    } catch {
+      // Preserve the original deletion error.
+    }
+    if (photoMoved && quarantinePath && photoPath && existsSync(quarantinePath)) {
+      try {
+        renameSync(quarantinePath, photoPath);
+      } catch {
+        // The database row remains after rollback; recovery requires operator attention.
+      }
+    }
+    throw error;
+  }
+}
+
+export function cleanupExpiredQuestions(now = new Date()) {
+  const cutoff = new Date(now.getTime() - questionRetentionDays * 24 * 60 * 60 * 1000).toISOString();
+  const rows = db.prepare(`
+    SELECT id
+    FROM questions
+    WHERE status IN ('answered', 'closed')
+      AND terminal_at <> ''
+      AND terminal_at <= ?
+  `).all(cutoff) as Array<{ id: number }>;
+  const failedIds: number[] = [];
+  let deleted = 0;
+
+  for (const row of rows) {
+    try {
+      if (permanentlyDeleteQuestion(row.id)) deleted += 1;
+    } catch {
+      failedIds.push(row.id);
+    }
+  }
+
+  return { deleted, failedIds, retentionDays: questionRetentionDays };
 }
 
 export function findQuestionPhotoByToken(privateToken: string) {
@@ -339,7 +413,7 @@ export function setAdminCookie(response: Response, token: string) {
   response.cookie('admin_session', token, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: false,
+    secure: process.env.NODE_ENV === 'production',
     maxAge: 7 * 24 * 60 * 60 * 1000,
     path: '/',
   });
@@ -349,7 +423,7 @@ export function clearAdminCookie(response: Response) {
   response.cookie('admin_session', '', {
     httpOnly: true,
     sameSite: 'lax',
-    secure: false,
+    secure: process.env.NODE_ENV === 'production',
     maxAge: 0,
     path: '/',
   });
@@ -374,8 +448,10 @@ async function saveQuestionPhoto(file: Express.Multer.File) {
 }
 
 function getSafePhotoPath(filename: string) {
+  if (path.basename(filename) !== filename) return null;
   const absolutePath = path.resolve(uploadDir, filename);
-  if (!absolutePath.startsWith(uploadDir)) return null;
+  const relativePath = path.relative(uploadDir, absolutePath);
+  if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) return null;
   return absolutePath;
 }
 
@@ -467,6 +543,7 @@ function migrateQuestionEmailColumns() {
   const existingColumns = new Set(columns.map((column) => column.name));
   const migrations = [
     ["context", "ALTER TABLE questions ADD COLUMN context TEXT NOT NULL DEFAULT ''"],
+    ["terminal_at", "ALTER TABLE questions ADD COLUMN terminal_at TEXT NOT NULL DEFAULT ''"],
     ["email_status", "ALTER TABLE questions ADD COLUMN email_status TEXT NOT NULL DEFAULT 'pending'"],
     ["email_sent_at", "ALTER TABLE questions ADD COLUMN email_sent_at TEXT NOT NULL DEFAULT ''"],
     ["email_error", "ALTER TABLE questions ADD COLUMN email_error TEXT NOT NULL DEFAULT ''"],
@@ -488,6 +565,16 @@ function migrateQuestionEmailColumns() {
       db.exec(sql);
     }
   }
+
+  db.exec(`
+    UPDATE questions
+    SET terminal_at = CASE
+      WHEN status = 'answered' AND answered_at <> '' THEN answered_at
+      WHEN status IN ('answered', 'closed') THEN updated_at
+      ELSE terminal_at
+    END
+    WHERE terminal_at = '' AND status IN ('answered', 'closed')
+  `);
 }
 
 function sanitizeEmailError(error: string) {

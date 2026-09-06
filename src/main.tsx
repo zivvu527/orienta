@@ -2,24 +2,33 @@
 import ReactDOM from 'react-dom/client';
 import {
   AlertTriangle,
+  ArrowRight,
   ArrowLeft,
   BookOpen,
   Camera,
   ChefHat,
   Copy,
   CreditCard,
+  ChevronRight,
+  FileText,
+  Grid2X2,
+  House,
   Info,
   Landmark,
+  Mail,
   MapPin,
   MessageCircle,
   Phone,
   Plus,
   ReceiptText,
   Search,
+  Settings,
   Share2,
+  ShieldCheck,
   ShoppingBag,
   ShoppingCart,
   TrainFront,
+  Users,
   Volume2,
 } from 'lucide-react';
 import { mockDishes, type Dish } from './data/dishes';
@@ -29,6 +38,7 @@ import { shoppingPhraseGroups } from './data/shoppingPhrases';
 import type { CategoryLabel, Phrase } from './data/types';
 import { DesignSystemPreview } from './design-system/DesignSystemPreview';
 import { apiUrl } from './api';
+import appPackage from '../package.json';
 import { canUseNativeImagePicker, isNativeImagePickerCancel, pickNativeImage, type NativeImageSource } from './nativeImage';
 import './styles.css';
 
@@ -40,6 +50,11 @@ const supportedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'i
 
 type Page =
   | 'home'
+  | 'tools'
+  | 'settings'
+  | 'privacy'
+  | 'terms'
+  | 'support'
   | 'restaurant'
   | 'translate-menu'
   | 'menu-dish-detail'
@@ -375,7 +390,9 @@ type ExchangeRatesResult = {
   base: string;
   rates: Record<string, number>;
   updatedAt: string;
-  provider?: string;
+  fetchedAt: number;
+  cacheStatus: 'live' | 'fresh-cache' | 'stale-cache';
+  stale: boolean;
 };
 
 type ShoppingPriceSession = {
@@ -726,6 +743,8 @@ function App() {
   const [questionToken, setQuestionToken] = useState(initialRoute.token ?? getStoredAskLocalSubmission().token);
   const [askLocalSubmittedEmail, setAskLocalSubmittedEmail] = useState(getStoredAskLocalSubmission().email);
   const [adminQuestionId, setAdminQuestionId] = useState(initialRoute.adminQuestionId ?? 0);
+  const [toolReturnPage, setToolReturnPage] = useState<'home' | 'tools'>('home');
+  const [settingsReturnTab, setSettingsReturnTab] = useState<PrimaryTab>('home');
 
   React.useEffect(() => {
     try {
@@ -794,7 +813,6 @@ function App() {
     navigate('home');
   }
 
-  const showEmergencyButton = page === 'home';
   const selectedSavedAddress = savedAddresses.find((item) => item.id === addressSession.selectedSavedAddressId) ?? null;
   const activeAddressResult = driverCardSource === 'saved-addresses'
     ? selectedSavedAddress?.result ?? null
@@ -802,13 +820,21 @@ function App() {
   const activeAddressText = driverCardSource === 'saved-addresses'
     ? selectedSavedAddress?.chineseAddress ?? ''
     : addressSession.result?.driverCard.destinationChinese || addressSession.result?.chineseAddress || addressSession.input;
+  const primaryTab: PrimaryTab | null = page === 'home' || page === 'ask-local' || page === 'tools'
+    ? page
+    : page === 'ask-local-submitted' ? 'ask-local' : null;
 
   return (
     <main className="app-shell">
       <div className="phone-frame">
-        {page === 'home' && <HomePage onNavigate={navigate} />}
+        {page === 'home' && <HomePage onNavigate={(nextPage) => { setToolReturnPage('home'); if (nextPage === 'settings') setSettingsReturnTab('home'); navigate(nextPage); }} />}
+        {page === 'tools' && <ToolsPage onNavigate={(nextPage) => { setToolReturnPage('tools'); navigate(nextPage); }} onSettings={() => { setSettingsReturnTab('tools'); navigate('settings'); }} />}
+        {page === 'settings' && <SettingsPage onBack={() => navigate(settingsReturnTab)} onNavigate={navigate} />}
+        {page === 'privacy' && <PrivacyPolicyPage onBack={() => navigate('settings')} />}
+        {page === 'terms' && <TermsOfUsePage onBack={() => navigate('settings')} onPrivacy={() => navigate('privacy')} />}
+        {page === 'support' && <SupportPage onBack={() => navigate('settings')} />}
 
-        {page === 'restaurant' && <RestaurantLandingPage onBack={goHome} onNavigate={navigate} />}
+        {page === 'restaurant' && <RestaurantLandingPage onBack={() => navigate(toolReturnPage)} onNavigate={navigate} />}
         {page === 'translate-menu' && (
           <TranslateMenuPage
             menuSession={menuSession}
@@ -858,7 +884,7 @@ function App() {
           />
         )}
 
-        {page === 'taxi' && <AddressHelperLandingPage onBack={goHome} onNavigate={navigate} />}
+        {page === 'taxi' && <AddressHelperLandingPage onBack={() => navigate(toolReturnPage)} onNavigate={navigate} />}
         {page === 'taxi-destination' && (
           <TaxiDestinationPage
             session={addressSession}
@@ -939,7 +965,7 @@ function App() {
         )}
         {page === 'add-address' && <AddAddressPage onBack={() => navigate('saved-addresses')} onSave={(address) => { setSavedAddresses((items) => upsertSavedAddress(items, address)); navigate('saved-addresses'); }} />}
 
-        {page === 'rail' && <RailLandingPage onBack={goHome} onNavigate={navigate} />}
+        {page === 'rail' && <RailLandingPage onBack={() => navigate(toolReturnPage)} onNavigate={navigate} />}
         {page === 'rail-ticket' && (
           <RailTicketAiPage
             session={normalizeRailTicketSession(railTicketSession)}
@@ -973,7 +999,7 @@ function App() {
           />
         )}
 
-        {page === 'shopping' && <ShoppingLandingPage onBack={goHome} onNavigate={navigate} />}
+        {page === 'shopping' && <ShoppingLandingPage onBack={() => navigate(toolReturnPage)} onNavigate={navigate} />}
         {page === 'understand-product' && <UnderstandProductPage onBack={() => navigate('shopping')} />}
         {page === 'currency-converter' && <LiveCurrencyConverterPage session={shoppingPriceSession} onSessionChange={setShoppingPriceSession} onBack={() => navigate('shopping')} />}
         {page === 'shopping-phrases' && (
@@ -994,7 +1020,7 @@ function App() {
 
         {page === 'emergency' && (
           <EmergencyPage
-            onBack={goHome}
+            onBack={() => navigate(toolReturnPage)}
             onAskLocal={() => navigate('ask-local')}
             onShowChinese={(service) => {
               openDisplay(
@@ -1016,7 +1042,7 @@ function App() {
           <QuickPhrasesPage
             groups={quickPhraseGroups}
             scrollTop={quickPhrasesScrollTop}
-            onBack={goHome}
+            onBack={() => navigate(toolReturnPage)}
             onScrollChange={setQuickPhrasesScrollTop}
             onSelect={(phrase, scrollTop) => {
               setQuickPhrasesScrollTop(scrollTop);
@@ -1027,7 +1053,7 @@ function App() {
 
         {page === 'ask-local' && (
           <AskLocalPage
-            onBack={goHome}
+            onSettings={() => { setSettingsReturnTab('ask-local'); navigate('settings'); }}
             onEmergency={() => navigate('emergency')}
             onCreated={(token, email) => {
               setQuestionToken(token);
@@ -1053,11 +1079,8 @@ function App() {
 
         {page === 'display-card' && displayContext && <ChineseDisplayCard context={displayContext} onBack={() => navigate(displayContext.returnPage)} />}
 
-        {showEmergencyButton ? (
-          <button className="floating-emergency" type="button" onClick={() => navigate('emergency')} aria-label="Emergency">
-            <AlertTriangle size={21} aria-hidden="true" />
-          </button>
-        ) : null}
+        {primaryTab ? <PrimaryTabBar active={primaryTab} onSelect={(tab) => navigate(tab, { replace: true })} /> : null}
+
       </div>
     </main>
   );
@@ -1074,6 +1097,11 @@ function getRouteFromLocation(): { page: Page; token?: string; adminQuestionId?:
   if (path === '/admin/login') return { page: 'admin-login' };
   if (path === '/admin/questions') return { page: 'admin-questions' };
   if (path === '/ask-local') return { page: 'ask-local' };
+  if (path === '/tools') return { page: 'tools' };
+  if (path === '/settings') return { page: 'settings' };
+  if (path === '/privacy') return { page: 'privacy' };
+  if (path === '/terms') return { page: 'terms' };
+  if (path === '/support') return { page: 'support' };
   if (path === '/ask-local/sent') return { page: 'ask-local-submitted' };
   if (path === '/emergency') return { page: 'emergency' };
   if (path === '/design-system') return { page: 'design-system' };
@@ -1086,6 +1114,11 @@ function getPathForRoute(page: Page, options?: { token?: string; adminQuestionId
   if (page === 'admin-questions') return '/admin/questions';
   if (page === 'admin-question-detail') return `/admin/questions/${options?.adminQuestionId ?? ''}`;
   if (page === 'ask-local') return '/ask-local';
+  if (page === 'tools') return '/tools';
+  if (page === 'settings') return '/settings';
+  if (page === 'privacy') return '/privacy';
+  if (page === 'terms') return '/terms';
+  if (page === 'support') return '/support';
   if (page === 'ask-local-submitted') return '/ask-local/sent';
   if (page === 'emergency') return '/emergency';
   if (page === 'design-system') return '/design-system';
@@ -1096,67 +1129,193 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
   const restaurant = scenarios.find((scenario) => scenario.id === 'restaurant');
   const address = scenarios.find((scenario) => scenario.id === 'taxi');
   const askLocal = scenarios.find((scenario) => scenario.id === 'ask-local');
-  const quick = scenarios.find((scenario) => scenario.id === 'quick');
   const rail = scenarios.find((scenario) => scenario.id === 'rail');
-  const shopping = scenarios.find((scenario) => scenario.id === 'shopping');
+  const quickTools = [restaurant, address, rail].filter(Boolean) as Scenario[];
   const homeHints: Record<string, string> = {
     restaurant: 'Menus & dishes',
-    taxi: 'Address translation',
-    quick: 'Daily phrases',
-    'ask-local': 'Human help',
-    rail: 'Boarding help',
-    shopping: 'Currency converter',
+    taxi: 'Show an address',
+    rail: 'Tickets & boarding',
   };
+  const homeTitles: Record<string, string> = { restaurant: 'Restaurant', taxi: 'Address', rail: 'Rail' };
 
   return (
     <section className="screen home-screen home-refresh" aria-labelledby="home-title">
       <header className="home-header">
-        <img
-          className="home-brand-lockup"
-          src="/brand/approved/orienta-brand-lockup-removebg.png"
-          width="1536"
-          height="1024"
-          alt="Orienta - Travel in China with confidence"
-          loading="eager"
-          decoding="async"
-        />
-        <h1 id="home-title">Need a little help?</h1>
-        <p className="home-intro">Choose what you need right now.</p>
+        <div className="home-brand">
+          <img className="home-brand-icon" src="/brand/approved/orienta-app-icon.png" alt="" width="96" height="96" />
+          <span><strong>Orienta</strong><small>Travel in China with confidence</small></span>
+        </div>
+        <button className="home-settings" type="button" onClick={() => onNavigate('settings')} aria-label="Settings">
+          <Settings size={22} strokeWidth={2.2} aria-hidden="true" />
+        </button>
       </header>
 
-      <section className="home-main" aria-label="Travel tools">
-        {restaurant ? (
-          <button className="home-feature-card" type="button" onClick={() => onNavigate(restaurant.page)}>
-            <span className="home-feature-copy">
-              <strong>{restaurant.title}</strong>
-              <span>{homeHints.restaurant}</span>
-            </span>
-            <span className="home-feature-icon">{restaurant.icon}</span>
-          </button>
-        ) : null}
+      <main className="home-main" aria-label="Home">
+        <section className="home-human-help" aria-labelledby="home-title">
+          <div className="home-hero-photography" aria-hidden="true">
+            <img className="home-hero-photo" src="/brand/approved/qingdao-may-fourth-square.jpg" alt="" />
+          </div>
+          <h1 id="home-title">Ask anything about traveling in China.</h1>
+          <p className="home-intro">Get real answers from people<br />who know China — not AI.</p>
 
-        <div className="home-action-grid">
-          {[address, rail, shopping, quick].filter(Boolean).map((scenario) => (
-            <button className={`home-action-button home-action-${scenario!.id}`} key={scenario!.id} type="button" onClick={() => onNavigate(scenario!.page)}>
-              <span className="home-action-icon">{scenario!.icon}</span>
-              <strong>{scenario!.title}</strong>
-              <small>{homeHints[scenario!.id]}</small>
+          <div className="home-human-proof" aria-label="Real people. Real local knowledge.">
+            <span>Real people.<br />Real local knowledge.</span>
+          </div>
+
+          <div className="home-photo-caption" aria-label="Qingdao, May Fourth Square">
+            <strong>QINGDAO · 青岛</strong>
+            <span>36.0620° N · 120.3849° E</span>
+            <small>MAY FOURTH SQUARE</small>
+          </div>
+
+          <div className="home-ask-entry">
+            <button className="home-question-prompt" type="button" onClick={() => onNavigate(askLocal?.page ?? 'ask-local')}>
+              <Search size={20} strokeWidth={2} aria-hidden="true" />
+              <span><strong>What would you like to ask?</strong><small>E.g. Where should I go in Qingdao if I only have one day?</small></span>
             </button>
-          ))}
-        </div>
+            <button className="home-ask-action" type="button" onClick={() => onNavigate(askLocal?.page ?? 'ask-local')}>
+              Ask a Local <ArrowRight size={19} strokeWidth={2.3} aria-hidden="true" />
+            </button>
+          </div>
+        </section>
 
-        {askLocal ? (
-          <button className="home-support-row" type="button" onClick={() => onNavigate(askLocal.page)}>
-            <span className="home-support-icon">{askLocal.icon}</span>
-            <span>
-              <strong>{askLocal.title}</strong>
-              <small>{homeHints['ask-local']}</small>
-            </span>
+        <section className="home-instant-tools" aria-labelledby="home-tools-title">
+          <div className="home-tools-copy">
+            <h2 id="home-tools-title">Quick tools</h2>
+            <p>Handle common travel needs instantly.</p>
+          </div>
+
+          <div className="home-tools-list">
+            {quickTools.map((scenario) => (
+              <button className={`home-tool-card home-tool-${scenario.id}`} key={scenario.id} type="button" onClick={() => onNavigate(scenario.page)}>
+                <span className="home-tool-icon" aria-hidden="true">{scenario.icon}</span>
+                <span className="home-tool-text">
+                  <strong>{homeTitles[scenario.id]}</strong>
+                  <small>{homeHints[scenario.id]}</small>
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <button className="home-more-tools" type="button" onClick={() => onNavigate('tools')}>
+            <Grid2X2 size={24} strokeWidth={1.9} aria-hidden="true" />
+            <span><strong>More tools</strong><small>Shopping, phrases, emergency and more</small></span>
+            <ChevronRight size={20} strokeWidth={2} aria-hidden="true" />
           </button>
-        ) : null}
-      </section>
+        </section>
+      </main>
+
     </section>
   );
+}
+
+type PrimaryTab = 'home' | 'ask-local' | 'tools';
+
+function PrimaryTabBar({ active, onSelect }: { active: PrimaryTab; onSelect: (tab: PrimaryTab) => void }) {
+  const tabs: Array<{ id: PrimaryTab; label: string; icon: React.ReactNode }> = [
+    { id: 'home', label: 'Home', icon: <House size={23} fill={active === 'home' ? 'currentColor' : 'none'} strokeWidth={1.8} aria-hidden="true" /> },
+    { id: 'ask-local', label: 'Ask', icon: <MessageCircle size={25} fill={active === 'ask-local' ? 'currentColor' : 'none'} strokeWidth={1.9} aria-hidden="true" /> },
+    { id: 'tools', label: 'Tools', icon: <Grid2X2 size={23} strokeWidth={1.9} aria-hidden="true" /> },
+  ];
+  return <nav className="primary-tab-bar" aria-label="Primary">{tabs.map((tab) => <button className={active === tab.id ? 'is-active' : ''} key={tab.id} type="button" aria-current={active === tab.id ? 'page' : undefined} onClick={() => onSelect(tab.id)}><span className="primary-tab-icon">{tab.icon}</span><span>{tab.label}</span></button>)}</nav>;
+}
+
+function ToolsPage({ onNavigate, onSettings }: { onNavigate: (page: Page) => void; onSettings: () => void }) {
+  const tools: Array<Scenario & { tone: string }> = [
+    { id: 'restaurant', title: 'Restaurant', description: 'Understand menus, explore dishes and get restaurant tips', icon: <ChefHat size={27} />, page: 'restaurant', tone: 'yellow' },
+    { id: 'taxi', title: 'Address Helper', description: 'Translate and format addresses in Chinese', icon: <MapPin size={27} />, page: 'taxi', tone: 'green' },
+    { id: 'rail', title: 'High-speed Rail', description: 'Understand tickets, stations and your journey', icon: <TrainFront size={27} />, page: 'rail', tone: 'blue' },
+    { id: 'shopping', title: 'Shopping', description: 'Understand products and get shopping help', icon: <ShoppingBag size={27} />, page: 'shopping', tone: 'pink' },
+    { id: 'quick', title: 'Quick Phrases', description: 'Useful Chinese phrases with audio', icon: <MessageCircle size={27} />, page: 'quick-phrases', tone: 'lavender' },
+    { id: 'emergency', title: 'Emergency', description: 'Important numbers and practical help', icon: <Phone size={27} />, page: 'emergency', tone: 'coral' },
+  ];
+  return (
+    <section className="screen tools-tab-screen primary-tab-screen" aria-labelledby="tools-page-title">
+      <header className="home-header tools-tab-header">
+        <div className="home-brand"><img className="home-brand-icon" src="/brand/approved/orienta-app-icon.png" alt="" width="96" height="96" /><span><strong>Orienta</strong><small>Travel in China with confidence</small></span></div>
+        <button className="home-settings" type="button" onClick={onSettings} aria-label="Settings"><Settings size={22} strokeWidth={2.2} aria-hidden="true" /></button>
+      </header>
+      <main className="tools-tab-main">
+        <section className="tools-tab-intro"><h1 id="tools-page-title">Travel tools<br />for everyday needs.</h1><p>Practical tools to help you travel in China<br />with less stress and more confidence.</p></section>
+        <div className="tools-tab-list">
+        {tools.map((tool) => (
+          <button className={`tools-tab-row tools-tab-${tool.tone}`} key={tool.id} type="button" onClick={() => onNavigate(tool.page)}>
+            <span className="tools-tab-icon">{tool.icon}</span><span className="tools-tab-copy"><strong>{tool.title}</strong><small>{tool.description}</small></span><ChevronRight size={20} strokeWidth={1.9} aria-hidden="true" />
+          </button>
+        ))}
+        <div className="tools-coming-row" role="note"><span><Grid2X2 size={24} strokeWidth={1.8} aria-hidden="true" /></span><span><strong>More coming soon</strong><small>We’re constantly adding new tools</small></span></div>
+        </div>
+      </main>
+    </section>
+  );
+}
+
+function SettingsPage({ onBack, onNavigate }: { onBack: () => void; onNavigate: (page: Page) => void }) {
+  const aboutRows = [
+    { title: 'Contact / Feedback', detail: 'We’d love to hear from you.', icon: <Mail size={24} />, page: 'support' as Page },
+    { title: 'Privacy Policy', detail: 'How we handle your information.', icon: <ShieldCheck size={25} />, page: 'privacy' as Page },
+    { title: 'Terms', detail: 'Terms of use.', icon: <FileText size={24} />, page: 'terms' as Page },
+  ];
+  return (
+    <section className="screen settings-screen" aria-labelledby="settings-page-title">
+      <header className="settings-header"><button className="settings-back" type="button" onClick={onBack} aria-label="Back"><ArrowLeft size={27} strokeWidth={2} aria-hidden="true" /></button></header>
+      <main className="settings-main">
+      <section className="settings-intro"><p>Orienta</p><h1 id="settings-page-title">Settings</h1><span>Customize your experience.</span></section>
+      <section className="settings-section" aria-labelledby="about-title">
+        <h2 id="about-title">About</h2>
+        <div className="settings-about">
+          <div className="settings-about-row is-informational"><span className="settings-about-icon" aria-hidden="true"><Info size={24} /></span><span><strong>Version</strong><small>{appPackage.version}</small></span></div>
+          {aboutRows.map((row) => <button className="settings-about-row" key={row.title} type="button" onClick={() => onNavigate(row.page)}><span className="settings-about-icon" aria-hidden="true">{row.icon}</span><span><strong>{row.title}</strong><small>{row.detail}</small></span><ChevronRight size={20} strokeWidth={1.8} aria-hidden="true" /></button>)}
+        </div>
+      </section>
+      </main>
+    </section>
+  );
+}
+
+function LegalPage({ title, onBack, children }: { title: string; onBack: () => void; children: React.ReactNode }) {
+  return <section className="screen legal-screen" aria-labelledby="legal-page-title"><header className="legal-header"><button className="settings-back" type="button" onClick={onBack} aria-label="Back to Settings"><ArrowLeft size={27} strokeWidth={2} aria-hidden="true" /></button></header><main className="legal-main"><div className="legal-title"><p>Orienta</p><h1 id="legal-page-title">{title}</h1><span>Last updated: September 2026</span></div><div className="legal-content">{children}</div></main></section>;
+}
+
+function PrivacyPolicyPage({ onBack }: { onBack: () => void }) {
+  return <LegalPage title="Privacy Policy" onBack={onBack}>
+    <p>Orienta is a travel companion designed to help international travelers navigate everyday situations in China. This Privacy Policy explains what information Orienta collects, why it is used, and how it is handled.</p>
+    <h2>Information You Provide</h2><p>Depending on the feature you use, you may provide information such as:</p><ul><li>photos of menus, products, or train tickets;</li><li>addresses, place names, dish names, or other text you choose to enter;</li><li>questions submitted through Ask a Local;</li><li>your email address when using Ask a Local;</li><li>optional location, context, and photos attached to an Ask a Local question.</li></ul><p>You are not required to create an account to use Orienta.</p>
+    <h2>Ask a Local</h2><p>When you use Ask a Local, Orienta stores your question, email address, optional location or additional context, and any photo you choose to attach.</p><p>This information is used to review your question, provide a human response, and send that response to your email address.</p><p>Ask a Local submissions are retained for 90 days after a question is answered or closed. After the 90-day retention period, the submission and any associated uploaded photo are automatically deleted, typically within 24 hours.</p><p>Authorized Orienta administrators may also permanently delete a submission earlier when necessary.</p><p>You may request deletion of an Ask a Local submission by contacting Orienta at: <a href="mailto:wuziyun527@163.com">wuziyun527@163.com</a></p><p>When possible, contact us using the same email address that you used when submitting the question so that we can verify and locate the submission.</p>
+    <h2>Photos and AI-Powered Tools</h2><p>Some Orienta tools use OpenAI services to help interpret information.</p><p>When you use Restaurant, Shopping, or Rail tools, a photo you choose may be securely sent through Orienta’s server to OpenAI for processing.</p><p>These photos are processed in Orienta’s server memory and are not intentionally stored on Orienta’s server after the request is completed.</p><p>Some text you provide, such as addresses, place names, dish names, or text used for speech generation, may also be sent to OpenAI when required to provide the requested feature.</p><p>OpenAI processes this information as a service provider for the relevant functionality.</p>
+    <h2>Train Tickets</h2><p>Train tickets may contain personal or travel information, such as a passenger name, train number, travel date, seat information, or ticket or order identifiers.</p><p>If you choose to analyze a train ticket with Orienta, the ticket image is processed to provide the requested ticket explanation.</p><p>Please avoid uploading information you do not want processed.</p>
+    <h2>Saved Addresses</h2><p>Addresses that you choose to save are stored locally on your device.</p><p>Saving an address does not add it to the Ask a Local database or another Orienta server-side address database.</p><p>You can remove saved addresses from the app. They may also be removed if the app’s local data is cleared.</p>
+    <h2>Email Services</h2><p>Orienta uses Resend as an email delivery provider for Ask a Local.</p><p>Information necessary to deliver these emails, including your email address and relevant message content, may be processed by Resend.</p><p>This is used to send Ask a Local responses and related service communications.</p>
+    <h2>Camera and Photo Library</h2><p>Orienta may request access to your camera or photo library when you choose to take or select a photo.</p><p>This access is used only to provide features that require images.</p><p>Orienta does not access photos from your library unless you choose to use an image-related feature.</p>
+    <h2>Location</h2><p>Orienta does not currently request access to your device’s GPS location.</p><p>Any city, address, location, or landmark information used in Orienta is information that you choose to enter or submit.</p>
+    <h2>Analytics, Advertising and Tracking</h2><p>Orienta does not currently use advertising SDKs or third-party analytics or tracking SDKs.</p><p>Orienta does not use IDFA for advertising and does not track you across apps or websites for advertising purposes.</p>
+    <h2>Service and Security Data</h2><p>Orienta may temporarily process limited technical information necessary to operate and protect the service.</p><p>For example, IP addresses may be temporarily processed for security and rate-limiting purposes.</p><p>Infrastructure and hosting providers may also process ordinary server and network logs as part of operating the service.</p>
+    <h2>Third-Party Services</h2><p>Orienta relies on limited third-party services to provide certain functionality.</p><p>These currently include:</p><ul><li>OpenAI, for AI-assisted image and text processing and certain text-to-speech functionality;</li><li>Resend, for Ask a Local email delivery;</li><li>public exchange-rate data providers, for currency conversion information; and</li><li>hosting and infrastructure providers necessary to operate Orienta.</li></ul><p>These providers receive information only as necessary to provide the relevant functionality.</p>
+    <h2>Data Retention and Deletion</h2><p>Ask a Local submissions are retained for 90 days after a question is answered or closed. After the 90-day retention period, the associated database record and uploaded photo are automatically deleted, typically within 24 hours.</p><p>Authorized Orienta administrators can also permanently delete a submission before the end of that period.</p><p>Photos processed through Restaurant, Shopping, and Rail are not intentionally stored on Orienta’s server after processing.</p><p>Saved Addresses remain locally on your device until you remove them or the app’s local data is cleared.</p><p>You may request deletion of personal information associated with an Ask a Local submission by contacting: <a href="mailto:wuziyun527@163.com">wuziyun527@163.com</a></p>
+    <h2>Children</h2><p>Orienta is a general travel utility and is not specifically designed for children.</p><p>If we learn that personal information has been collected in circumstances where deletion is legally required, we will take appropriate steps to remove it.</p>
+    <h2>Changes to This Policy</h2><p>We may update this Privacy Policy as Orienta evolves.</p><p>When material changes are made, the “Last updated” date at the top of this page will be updated.</p>
+    <h2>Contact</h2><p>For questions about this Privacy Policy, your personal information, or a deletion request, contact: <a href="mailto:wuziyun527@163.com">wuziyun527@163.com</a></p>
+  </LegalPage>;
+}
+
+function TermsOfUsePage({ onBack, onPrivacy }: { onBack: () => void; onPrivacy: () => void }) {
+  return <LegalPage title="Terms of Use" onBack={onBack}>
+    <p>Welcome to Orienta.</p><p>Orienta provides tools and information designed to make traveling in China easier. By using Orienta, you agree to these Terms of Use.</p>
+    <h2>Using Orienta</h2><p>You may use Orienta for personal travel and informational purposes.</p><p>You agree not to misuse the service, interfere with its operation, attempt unauthorized access, or submit unlawful, abusive, or infringing content.</p>
+    <h2>Travel Information</h2><p>Orienta provides travel assistance and informational tools.</p><p>Information provided by Orienta, including translations, address formatting, menu explanations, product information, rail information, emergency information, and responses from Ask a Local, may contain errors or become outdated.</p><p>You should verify important information with official or appropriate local sources when necessary.</p><p>Orienta does not replace official transportation information, emergency services, medical advice, legal advice, or other professional services.</p>
+    <h2>Ask a Local</h2><p>Ask a Local allows you to submit travel-related questions for a response from a real person.</p><p>Responses are provided for general informational purposes and represent practical guidance rather than official or professional advice.</p><p>Response availability and response times are not guaranteed.</p>
+    <h2>AI-Assisted Features</h2><p>Some Orienta features use OpenAI services to interpret photos or text.</p><p>AI-generated or AI-assisted results may be incomplete or inaccurate.</p><p>You should use your own judgment and verify important information where appropriate.</p>
+    <h2>Your Content</h2><p>You are responsible for photos, text, questions, and other content you choose to submit to Orienta.</p><p>You should only submit content that you have the right to use and that is reasonably necessary for the feature you are using.</p>
+    <h2>Availability</h2><p>We may modify, improve, suspend, or discontinue parts of Orienta as the service develops.</p><p>We do not guarantee uninterrupted or error-free availability.</p>
+    <h2>Limitation of Liability</h2><p>To the extent permitted by applicable law, Orienta is not responsible for losses or damages resulting solely from reliance on inaccurate, incomplete, or outdated travel information provided through the service.</p><p>Nothing in these Terms excludes rights or protections that cannot legally be excluded.</p>
+    <h2>Privacy</h2><p>Your use of Orienta is also subject to the Orienta <a className="legal-inline-link" href="/privacy" onClick={(event) => { event.preventDefault(); onPrivacy(); }}>Privacy Policy</a>.</p>
+    <h2>Changes</h2><p>These Terms may be updated as Orienta evolves.</p><p>The latest version will show its effective date.</p>
+    <h2>Contact</h2><p>Questions about these Terms can be sent to: <a href="mailto:wuziyun527@163.com">wuziyun527@163.com</a></p>
+  </LegalPage>;
+}
+
+function SupportPage({ onBack }: { onBack: () => void }) {
+  return <section className="screen legal-screen support-screen" aria-labelledby="support-page-title"><header className="legal-header"><button className="settings-back" type="button" onClick={onBack} aria-label="Back to Settings"><ArrowLeft size={27} strokeWidth={2} aria-hidden="true" /></button></header><main className="legal-main"><div className="legal-title"><p>Orienta</p><h1 id="support-page-title">Contact Orienta</h1><span>Need help? Found a bug? Have an idea?</span></div><div className="legal-content"><p>We’d love to hear from you.</p><p>Contact Orienta if you:</p><ul><li>need help using Orienta;</li><li>found something that isn’t working;</li><li>have feedback or a feature suggestion;</li><li>have a question about privacy; or</li><li>want to request deletion of information you submitted through Ask a Local.</li></ul><h2>Email</h2><p><a className="support-email" href="mailto:wuziyun527@163.com">wuziyun527@163.com</a></p><h2>Privacy Requests</h2><p>If you’re asking us to locate or delete an Ask a Local submission, please contact us using the email address you originally submitted when possible.</p><p>This helps us verify the request without requiring an Orienta account.</p></div></main></section>;
 }
 
 function ScenarioList({ scenarios, onNavigate }: { scenarios: Scenario[]; onNavigate: (page: Page) => void }) {
@@ -4013,8 +4172,8 @@ function LiveCurrencyConverterPage({
   const converted = rate ? numericAmount * rate : 0;
   const result = formatCurrencyAmount(converted, session.toCurrency);
   const cnyAmount = formatCurrencyAmount(numericAmount, 'CNY');
-  const rateStatusText = ratesResult?.updatedAt
-    ? `Last updated ${ratesResult.updatedAt}`
+  const rateStatusText = ratesResult?.fetchedAt
+    ? formatRateAge(ratesResult.fetchedAt)
     : 'Loading latest rate...';
 
   function updateAmount(value: string) {
@@ -4057,11 +4216,20 @@ function LiveCurrencyConverterPage({
           <p className="shopping-cny-amount">{cnyAmount}</p>
           <h2>{isLoading ? 'Loading...' : result}</h2>
           <p>{rateStatusText}</p>
-          <small>{ratesResult?.provider ? `Source: ${ratesResult.provider}. ` : ''}Exchange rates are for quick travel reference only. Not a guaranteed checkout price.</small>
+          <small>Exchange rates are for quick travel reference only. Not a guaranteed checkout price.</small>
         </div>
       ) : null}
     </section>
   );
+}
+
+function formatRateAge(fetchedAt: number) {
+  const elapsedMinutes = Math.max(0, Math.floor((Date.now() - fetchedAt) / 60_000));
+  if (elapsedMinutes < 1) return 'Rates last updated just now';
+  if (elapsedMinutes < 60) return `Rates last updated ${elapsedMinutes}m ago`;
+  const elapsedHours = Math.floor(elapsedMinutes / 60);
+  if (elapsedHours < 24) return `Rates last updated ${elapsedHours}h ago`;
+  return `Rates last updated ${Math.floor(elapsedHours / 24)}d ago`;
 }
 
 function formatCurrencyAmount(amount: number, currency: string) {
@@ -4191,11 +4359,11 @@ function isValidEmail(value: string) {
 }
 
 function AskLocalPage({
-  onBack,
+  onSettings,
   onCreated,
   onEmergency,
 }: {
-  onBack: () => void;
+  onSettings: () => void;
   onCreated: (token: string, email: string) => void;
   onEmergency: () => void;
 }) {
@@ -4313,59 +4481,36 @@ function AskLocalPage({
   }
 
   return (
-    <section className="screen ask-local-screen">
-      <div className="module-hero ask-local-hero">
-        <button className="back-bubble" type="button" onClick={onBack} aria-label="Back"><ArrowLeft size={27} /></button>
-        <span className="module-kicker">Ask a Local</span>
-        <h1>Ask someone who knows China.</h1>
-        <p>Get a private answer by email.</p>
-      </div>
+    <section className="screen ask-local-screen ask-tab-screen primary-tab-screen" aria-labelledby="ask-tab-title">
+      <header className="home-header ask-tab-header">
+        <div className="home-brand"><img className="home-brand-icon" src="/brand/approved/orienta-app-icon.png" alt="" width="96" height="96" /><span><strong>Orienta</strong><small>Travel in China with confidence</small></span></div>
+        <button className="home-settings" type="button" onClick={onSettings} aria-label="Settings"><Settings size={22} strokeWidth={2.2} aria-hidden="true" /></button>
+      </header>
 
-      <section className="ask-local-card">
-        <p className="ask-local-card-note">When travel tools aren't enough, a real person will review your question.</p>
-        <label className="text-field ask-local-field">
-          <span>What do you need help with?</span>
-          <textarea placeholder="e.g. Which entrance should I use at this station?" value={question} onChange={(event) => setQuestion(event.target.value)} />
-        </label>
-        <label className="text-field compact-field ask-local-field">
-          <span>Email address</span>
-          <input type="email" placeholder="you@example.com" value={email} onChange={(event) => setEmail(event.target.value)} />
-          <small>We'll send the answer to this email. Your email is only used to reply to this question.</small>
-        </label>
+      <main className="ask-tab-main">
+        <section className="ask-tab-intro"><h1 id="ask-tab-title">Ask a Local</h1><p>Get real answers from people<br />who know China — not AI.</p></section>
+        <section className="ask-tab-trust" aria-label="How Ask a Local works"><span className="ask-tab-trust-icon"><Users size={27} strokeWidth={2} aria-hidden="true" /></span><div><strong>Real people. Real local knowledge.</strong><p>Your question will be answered by a real person and sent to your email. This is not a public forum.</p></div></section>
 
-        <label className="ask-local-photo-dropzone" onClick={handleNativePhotoPick}>
-          <Plus size={24} aria-hidden="true" />
-          <strong>Add a photo</strong>
-          <small>Sign, menu, ticket or screenshot · Optional</small>
-          <input accept={imageInputAccept} type="file" onChange={handlePhotoInputChange} />
-        </label>
-        {photo ? <p className="prototype-note ask-local-photo-name">{photo.name}</p> : null}
-        <small className="ask-local-privacy-note">Don't upload passwords, payment codes or full ID documents.</small>
+        <section className="ask-tab-form-card">
+          <label className="ask-tab-field ask-tab-question"><span>What would you like to ask?</span><textarea maxLength={1500} placeholder="E.g. Where should I go in Qingdao if I only have one day?" value={question} onChange={(event) => setQuestion(event.target.value)} /><small>{question.length}/1500</small></label>
 
-        <button className="ask-local-optional-toggle" type="button" onClick={() => setShowOptionalDetails((value) => !value)}>
-          <span>Add location or more details</span>
-          <small>{showOptionalDetails ? 'Hide' : 'Optional'}</small>
-        </button>
-        {showOptionalDetails ? (
-          <div className="ask-local-optional-fields">
-            <label className="text-field compact-field ask-local-field">
-              <span>Current city</span>
-              <input type="text" placeholder="Qingdao, Beijing South Station..." value={location} onChange={(event) => setLocation(event.target.value)} />
-            </label>
-            <label className="text-field ask-local-field">
-              <span>Context / details</span>
-              <textarea placeholder="Add anything that may help us understand the situation." value={context} onChange={(event) => setContext(event.target.value)} />
-            </label>
+          <div className="ask-tab-photo-group">
+            <div><strong>Add a photo <em>(optional)</em></strong><p>You can add a photo of a place, menu, sign, or anything related to your question.</p></div>
+            <label className="ask-tab-photo" onClick={handleNativePhotoPick}><span><Camera size={25} strokeWidth={2} aria-hidden="true" /></span><span><strong>{photo ? photo.name : 'Tap to add a photo'}</strong><small>JPEG, PNG, WebP or HEIC up to 8MB</small></span><input accept={imageInputAccept} type="file" onChange={handlePhotoInputChange} /></label>
           </div>
-        ) : null}
-      </section>
 
-      {error ? <div className="error-panel"><strong>Submission failed</strong><p>{error}</p></div> : null}
-      <button className="primary-button footer-button ask-local-submit" type="button" disabled={!canSubmit} onClick={submitQuestion}>{isSubmitting ? 'Sending...' : 'Send to a Local'}</button>
-      <button className="ask-local-emergency-note" type="button" onClick={onEmergency}>
-        <AlertTriangle size={18} aria-hidden="true" />
-        <span>For urgent situations, open Emergency.</span>
-      </button>
+          <label className="ask-tab-field ask-tab-email"><span>Where should we send the reply?</span><span className="ask-tab-input-wrap"><Mail size={21} strokeWidth={1.9} aria-hidden="true" /><input type="email" placeholder="Your email address" value={email} onChange={(event) => setEmail(event.target.value)} /></span><small>We’ll email you when a real person has answered.</small></label>
+
+          <button className="ask-local-optional-toggle ask-tab-optional-toggle" type="button" onClick={() => setShowOptionalDetails((value) => !value)}><span>Add location or more details</span><small>{showOptionalDetails ? 'Hide' : 'Optional'}</small></button>
+          {showOptionalDetails ? <div className="ask-local-optional-fields ask-tab-optional-fields"><label className="ask-tab-field"><span>Current city</span><input type="text" placeholder="Qingdao, Beijing South Station..." value={location} onChange={(event) => setLocation(event.target.value)} /></label><label className="ask-tab-field"><span>Context / details</span><textarea placeholder="Add anything that may help us understand the situation." value={context} onChange={(event) => setContext(event.target.value)} /></label></div> : null}
+
+          {error ? <div className="error-panel"><strong>Submission failed</strong><p>{error}</p></div> : null}
+          <button className="ask-tab-submit" type="button" disabled={!canSubmit} onClick={submitQuestion}>{isSubmitting ? 'Sending...' : 'Send my question'} <ArrowRight size={21} strokeWidth={2.3} aria-hidden="true" /></button>
+        </section>
+
+        <section className="ask-tab-privacy"><ShieldCheck size={24} strokeWidth={1.9} aria-hidden="true" /><p>Your information is only used to reply to your question.<br /><u>See our Privacy Policy</u></p></section>
+        <button className="ask-local-emergency-note ask-tab-emergency" type="button" onClick={onEmergency}><AlertTriangle size={18} aria-hidden="true" /><span>For urgent situations, open Emergency.</span></button>
+      </main>
     </section>
   );
 }
@@ -4556,6 +4701,7 @@ function AdminQuestionDetailPage({ id, onBack, onLogin }: { id: number; onBack: 
   const [isPublishing, setIsPublishing] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [isSendingAdminNotification, setIsSendingAdminNotification] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   React.useEffect(() => {
     async function loadQuestion() {
@@ -4656,6 +4802,27 @@ function AdminQuestionDetailPage({ id, onBack, onLogin }: { id: number; onBack: 
     }
   }
 
+  async function permanentlyDelete() {
+    if (!window.confirm('Permanently delete this question and its uploaded photo? This cannot be undone.')) return;
+    setMessage('');
+    setError('');
+    setIsDeleting(true);
+    try {
+      const response = await fetch(apiUrl(`/api/admin/questions/${id}`), { method: 'DELETE' });
+      if (response.status === 401) {
+        onLogin();
+        return;
+      }
+      const body = response.status === 204 ? null : await response.json().catch(() => null);
+      if (!response.ok) throw new Error(body?.error || 'Could not permanently delete question.');
+      onBack();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Could not permanently delete question.');
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
   if (isLoading) return <section className="screen"><PageHeader title="Question" onBack={onBack} /><div className="menu-loading"><div className="spinner" /><p>Loading question...</p></div></section>;
   if (error && !question) return <section className="screen"><PageHeader title="Question" onBack={onBack} /><div className="error-panel"><strong>Could not open question</strong><p>{error}</p></div></section>;
   if (!question) return null;
@@ -4691,6 +4858,7 @@ function AdminQuestionDetailPage({ id, onBack, onLogin }: { id: number; onBack: 
         {question.answerStatus === 'published' ? <button className="secondary-button" type="button" disabled={isSendingEmail} onClick={sendEmail}>{isSendingEmail ? 'Sending...' : shouldLabelRetry(question.emailStatus) ? 'Retry Email' : 'Resend Email'}</button> : null}
         <button className="secondary-button" type="button" disabled={isSendingAdminNotification} onClick={sendAdminNotification}>{isSendingAdminNotification ? 'Sending notice...' : shouldLabelRetry(question.adminNotificationStatus) ? 'Retry Admin Notice' : 'Resend Admin Notice'}</button>
         <button className="secondary-button" type="button" onClick={() => updateQuestion('close')}>Mark as Closed</button>
+        <button className="secondary-button admin-delete-button" type="button" disabled={isDeleting} onClick={permanentlyDelete}>{isDeleting ? 'Deleting...' : 'Permanently Delete'}</button>
       </div>
     </section>
   );
@@ -4787,11 +4955,11 @@ function SubmittedPage({
   onOpenPrivateLink: () => void;
 }) {
   return (
-    <section className="screen submitted-screen ask-local-screen">
+    <section className="screen submitted-screen ask-local-screen ask-tab-success primary-tab-screen">
       <div className="submitted-card ask-local-success-card">
         <MessageCircle size={34} aria-hidden="true" />
         <h1>Your question is on its way.</h1>
-        <p>A real person will review it and send the answer to {email || 'your email'}.</p>
+        <p>A real person will take a look and reply to {email || 'your email'}.</p>
         <small>This is not an instant chat. You can safely leave this page.</small>
       </div>
       <section className="ask-local-email-note" aria-label="Email delivery note">
@@ -4799,7 +4967,6 @@ function SubmittedPage({
         <div>
           <strong>Didn’t receive our email?</strong>
           <p>Occasionally, email providers may place our reply in your Spam or Junk folder. If you find it there, mark it as Not Spam to ensure future replies arrive in your inbox.</p>
-          <small>We’ll usually reply within 24 hours.</small>
         </div>
       </section>
       <section className="ask-local-backup-link">
