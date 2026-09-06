@@ -26,7 +26,25 @@ export async function exploreDish(dishName: string) {
   ));
 
   const parsed = JSON.parse(extractJsonText(rawText));
-  return DishExploreResultSchema.parse(parsed);
+  return parseDishExploreResult(parsed);
+}
+
+export function parseDishExploreResult(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return DishExploreResultSchema.parse(value);
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const dietaryNotes = candidate.dietaryNotes;
+  if (typeof dietaryNotes !== 'string') {
+    return DishExploreResultSchema.parse(candidate);
+  }
+
+  const normalizedDietaryNotes = dietaryNotes.trim();
+  return DishExploreResultSchema.parse({
+    ...candidate,
+    dietaryNotes: normalizedDietaryNotes ? [normalizedDietaryNotes] : [],
+  });
 }
 
 async function exploreWithResponses(
