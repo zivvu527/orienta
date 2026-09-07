@@ -26,6 +26,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Orienta uses the camera to take menu, product, ticket, and question photos you choose to upload.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Orienta may save photos you choose or capture while using travel tools.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Orienta uses your photo library to upload menu, product, ticket, and question images you choose.</string>
 	<key>UILaunchStoryboardName</key>

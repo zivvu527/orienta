@@ -1,5 +1,9 @@
 import { Capacitor } from '@capacitor/core';
-import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import {
+  Camera,
+  CameraResultType,
+  CameraSource,
+} from '@capacitor/camera';
 
 export type NativeImageSource = 'camera' | 'photos' | 'prompt';
 
@@ -8,14 +12,25 @@ export function canUseNativeImagePicker() {
 }
 
 export function isNativeImagePickerCancel(error: unknown) {
-  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
-  return message.includes('cancel') || message.includes('user denied');
+  const message =
+    error instanceof Error
+      ? error.message.toLowerCase()
+      : String(error).toLowerCase();
+
+  return (
+    message.includes('cancel') ||
+    message.includes('cancelled') ||
+    message.includes('canceled')
+  );
 }
 
-export async function pickNativeImage(source: NativeImageSource): Promise<File | null> {
+export async function pickNativeImage(
+  source: NativeImageSource,
+): Promise<File | null> {
   if (!canUseNativeImagePicker()) {
     return null;
   }
+
 
   const photo = await Camera.getPhoto({
     source: toCameraSource(source),
@@ -26,11 +41,17 @@ export async function pickNativeImage(source: NativeImageSource): Promise<File |
     allowEditing: false,
   });
 
+
   if (!photo.dataUrl) {
     return null;
   }
 
-  return dataUrlToJpegFile(photo.dataUrl, source === 'camera' ? 'oriented-camera-photo.jpg' : 'oriented-photo.jpg');
+  return dataUrlToFile(
+    photo.dataUrl,
+    source === 'camera'
+      ? 'orienta-camera-photo'
+      : 'orienta-photo',
+  );
 }
 
 function toCameraSource(source: NativeImageSource) {
@@ -39,32 +60,32 @@ function toCameraSource(source: NativeImageSource) {
   return CameraSource.Prompt;
 }
 
-async function dataUrlToJpegFile(dataUrl: string, fileName: string) {
-  const image = await loadImage(dataUrl);
-  const canvas = document.createElement('canvas');
-  canvas.width = image.naturalWidth;
-  canvas.height = image.naturalHeight;
-  const context = canvas.getContext('2d');
+function dataUrlToFile(dataUrl: string, baseName: string): File {
+  const match = dataUrl.match(/^data:([^;,]+);base64,(.+)$/s);
 
-  if (!context) {
+  if (!match) {
     throw new Error('Could not prepare this image.');
   }
 
-  context.drawImage(image, 0, 0, canvas.width, canvas.height);
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82));
+  const mimeType = match[1] || 'image/jpeg';
+  const base64 = match[2];
 
-  if (!blob) {
-    throw new Error('Could not prepare this image.');
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
   }
 
-  return new File([blob], fileName, { type: 'image/jpeg', lastModified: Date.now() });
-}
+  const extension =
+    mimeType === 'image/png'
+      ? 'png'
+      : mimeType === 'image/webp'
+        ? 'webp'
+        : 'jpg';
 
-function loadImage(dataUrl: string) {
-  return new Promise<HTMLImageElement>((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error('Could not open this image.'));
-    image.src = dataUrl;
+  return new File([bytes], `${baseName}.${extension}`, {
+    type: mimeType,
+    lastModified: Date.now(),
   });
 }
